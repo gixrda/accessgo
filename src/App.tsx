@@ -225,6 +225,7 @@ export default function App() {
             <RoutePanel from={from} to={to} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
               onLocate={locate} locating={locating} onCalculate={() => void calculate()} loading={routeLoading} error={routeError}
               recalc={recalc} onDismissRecalc={() => setRecalc(null)}
+              onPosition={(c) => setUserPos({ lat: c[0], lng: c[1] })}
               route={route} analysis={analysis} footRoute={footRoute} footAnalysis={footAnalysis}
               showFoot={showFoot} setShowFoot={setShowFoot} onSelect={select}
               onFocus={(coords) => setFocus({ coords, nonce: Date.now() })} />

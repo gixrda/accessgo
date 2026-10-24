@@ -1,6 +1,7 @@
 import type { LatLngTuple, RouteResult } from '../shared/types.ts';
 import { HttpError, USER_AGENT, type Env } from './errors.ts';
 import { distanceToRoute } from '../shared/geo.ts';
+import { routeDistances, type RouteManeuver } from '../shared/navigation.ts';
 import { RULES } from '../shared/rules.ts';
 import { chooseSafest } from './safety.ts';
 
@@ -129,7 +130,48 @@ async function orsWheelchair(from: Point, to: Point, key: string, avoid: Point[]
   };
 }
 
-type OsrmResponse = { code: string; routes?: { distance: number; duration: number; geometry: { coordinates: [number, number][] } }[] };
+type OsrmStep = { distance?: number; maneuver?: { instruction?: string; type?: string; location?: unknown }; intersections?: { geometry_index?: number }[] };
+type OsrmRoute = { distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs?: { steps?: OsrmStep[] }[] };
+type OsrmResponse = { code: string; routes?: OsrmRoute[] };
+
+const isLngLat = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number' && Number.isFinite(n));
+
+/**
+ * Istruzioni di svolta (formato OSRM di Valhalla) agganciate agli indici della geometria. Se una sola istruzione
+ * non torna con la geometria si restituisce [] e la guida vocale resta disattivata: meglio nessuna indicazione che una sbagliata.
+ */
+export function osrmManeuvers(route: OsrmRoute, coords: LatLngTuple[]): RouteManeuver[] {
+  const cumulative = routeDistances(coords);
+  const maneuvers: RouteManeuver[] = [];
+  let cursor = 0;
+  for (const [legIndex, leg] of (route.legs ?? []).entries()) {
+    if (!leg.steps?.length) return [];
+    const legOffset = cursor;
+    for (const [stepIndex, step] of leg.steps.entries()) {
+      const location = step.maneuver?.location;
+      const instruction = step.maneuver?.instruction?.trim();
+      if (!instruction || !isLngLat(location) || typeof step.distance !== 'number' || !Number.isFinite(step.distance)) return [];
+      const matches = (i: number) => i >= 0 && i < coords.length
+        && Math.abs(coords[i][0] - location[1]) < 0.0000011 && Math.abs(coords[i][1] - location[0]) < 0.0000011;
+      // Gli indici delle intersezioni ripartono da zero a ogni tratto: sono più affidabili del confronto di coordinate.
+      const localIndex = step.intersections?.[0]?.geometry_index;
+      let shapeIndex: number;
+      if (localIndex !== undefined) {
+        if (!Number.isInteger(localIndex) || localIndex < 0) return [];
+        shapeIndex = legOffset + localIndex;
+      } else {
+        shapeIndex = coords.findIndex((_, i) => i >= cursor && matches(i));
+        if (shapeIndex === cursor && stepIndex > 0 && (leg.steps[stepIndex - 1].distance ?? 0) > 1) return [];
+      }
+      if (shapeIndex < cursor || !matches(shapeIndex)) return [];
+      if (stepIndex === 0 && shapeIndex !== legOffset) return [];
+      cursor = shapeIndex;
+      maneuvers.push({ instruction, coordinate: coords[shapeIndex], shapeIndex,
+        routeDistanceM: cumulative[shapeIndex], distanceM: step.distance, legIndex, type: step.maneuver?.type });
+    }
+  }
+  return cursor === coords.length - 1 ? maneuvers : [];
+}
 
 async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot', alternates = 0, avoid: Point[] = []): Promise<RouteResult[]> {
   const res = await fetch('https://valhalla1.openstreetmap.de/route', {
@@ -142,6 +184,8 @@ async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot', alt
       // con la penalità massima ammessa (12 h) le usa solo se non esiste alternativa, e l'analisi le segnala.
       costing_options: { pedestrian: type === 'wheelchair' ? { type, step_penalty: 43_200 } : { type } },
       ...(alternates ? { alternates } : {}),
+      // Istruzioni di svolta in italiano per la guida vocale
+      language: 'it-IT', directions_type: 'instructions',
       // Verificato dal vivo: exclude_polygons sposta il percorso, exclude_locations no.
       ...(avoid.length ? { exclude_polygons: avoid.map(avoidSquare) } : {}),
       format: 'osrm',
@@ -155,12 +199,10 @@ async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot', alt
   if (json?.code === 'NoRoute' || res.status === 400) throw new HttpError(404, type === 'wheelchair' ? NO_WHEELCHAIR_ROUTE : NO_ROUTE);
   const routes = json?.code === 'Ok' ? json.routes ?? [] : [];
   if (!res.ok || !routes.length) throw new HttpError(502, 'Il servizio dei percorsi per sedia a rotelle ha avuto un problema.');
-  return routes.map((r) => ({
-    mode: type, provider: 'valhalla',
-    coords: r.geometry.coordinates.map(([lng, lat]): LatLngTuple => [lat, lng]),
-    distanceM: r.distance,
-    durationS: r.duration,
-  }));
+  return routes.map((r) => {
+    const coords = r.geometry.coordinates.map(([lng, lat]): LatLngTuple => [lat, lng]);
+    return { mode: type, provider: 'valhalla', coords, distanceM: r.distance, durationS: r.duration, maneuvers: osrmManeuvers(r, coords) };
+  });
 }
 
 async function osrmFoot(from: Point, to: Point): Promise<RouteResult> {

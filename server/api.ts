@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { inPisa, PISA_BOUNDS, type GeocodeResult, type ServerStatus } from '../shared/types.ts';
 import { aiProvider } from './ai.ts';
 import { HttpError, USER_AGENT, type Env } from './errors.ts';
 import { createReportStore } from './reports.ts';
 import { getFootRoute, getRoute } from './routing.ts';
+import { synthesizeSpeech, transcribeAudio, voiceStatus } from './voice.ts';
 
 export interface ApiOptions {
   env: Env;
@@ -54,6 +56,20 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
           admin: Boolean(env.ADMIN_TOKEN),
         };
         return send(res, 200, status);
+      }
+      if (method === 'GET' && path === '/api/voice/status') return send(res, 200, voiceStatus(env));
+      if (method === 'POST' && path === '/api/voice/transcribe') {
+        // Il modulo voce lavora su Request/FormData standard: la richiesta Node viene incapsulata senza copiarla.
+        const headers: Record<string, string> = {};
+        for (const h of ['content-type', 'content-length'] as const) if (req.headers[h]) headers[h] = String(req.headers[h]);
+        const request = new Request(`http://localhost${path}`, { method: 'POST', headers, body: Readable.toWeb(req) as ReadableStream, duplex: 'half' } as RequestInit);
+        return send(res, 200, await transcribeAudio(request, env));
+      }
+      if (method === 'POST' && path === '/api/voice/speak') {
+        const audio = await synthesizeSpeech(await body(req), env);
+        res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+        res.end(Buffer.from(audio));
+        return true;
       }
       if (method === 'GET' && path === '/api/osm') {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=300' });

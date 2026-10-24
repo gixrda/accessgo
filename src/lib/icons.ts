@@ -2,7 +2,7 @@ import type { FeatureKind } from '../../shared/types.ts';
 
 // Glifi SVG 16×16 a tratto, usati sia nei marker Leaflet (come stringa HTML) sia nei pannelli.
 export type IconName = FeatureKind | 'place' | 'report' | 'other' | 'start' | 'end' | 'locate'
-  | 'warning' | 'info' | 'swap' | 'search' | 'road' | 'check' | 'pin' | 'camera' | 'back' | 'block' | 'layers' | 'close' | 'route';
+  | 'warning' | 'info' | 'swap' | 'search' | 'road' | 'check' | 'pin' | 'camera' | 'back' | 'block' | 'layers' | 'close' | 'route' | 'mic' | 'stop';
 
 const PATHS: Record<IconName, string> = {
   steps: 'M2 14h4v-4h4V6h4V2',
@@ -30,6 +30,8 @@ const PATHS: Record<IconName, string> = {
   camera: 'M2 5h3l1.5-2h3L11 5h3v8H2zM8 6.8a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6z',
   back: 'M10 3L5 8l5 5',
   close: 'M4 4l8 8M12 4l-8 8',
+  mic: 'M8 1.5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0V4A2.5 2.5 0 0 1 8 1.5zM3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5',
+  stop: 'M3.5 3.5h9v9h-9z',
   route: 'M3.5 13.5a1.8 1.8 0 1 0 0-.1zM12.5 2.5a1.8 1.8 0 1 0 0 .1M4.5 12C9 12 5 5 11 4',
   layers: 'M8 1.8l6.5 3.4L8 8.6 1.5 5.2zM1.5 8.2L8 11.6l6.5-3.4M1.5 11.2L8 14.6l6.5-3.4',
   block: 'M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM3.4 3.4l9.2 9.2',

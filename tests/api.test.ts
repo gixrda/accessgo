@@ -45,6 +45,13 @@ describe('API senza credenziali', () => {
     expect(await (await call('/api/status')).json()).toEqual({ routing: 'valhalla', ai: 'fallback', admin: false });
   });
 
+  it('voce: senza chiave lo dichiara e rifiuta la sintesi', async () => {
+    expect(await (await call('/api/voice/status')).json()).toMatchObject({ provider: 'elevenlabs', configured: false });
+    const res = await post('/api/voice/speak', { text: 'Ciao' });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/non è configurato/);
+  });
+
   it('serve il dataset OSM', async () => {
     expect((await (await call('/api/osm')).json()).source).toBe('test');
   });

@@ -5,7 +5,10 @@ import { routeAlerts, type RouteAlert } from '../lib/alerts.ts';
 import { formatDistance, formatDuration, type RouteAnalysis } from '../lib/analysis.ts';
 import { compareRoutes } from '../lib/compare.ts';
 import type { Recalc } from '../lib/reroute.ts';
+import { spokenPlaceQuery } from '../lib/speech.ts';
+import { DictationButton } from './DictationButton.tsx';
 import { Icon } from './Icon.tsx';
+import { NavigationPanel } from './NavigationPanel.tsx';
 import type { PickMode, Selection } from './MapView.tsx';
 
 type Place = { lat: number; lng: number; label: string };
@@ -32,6 +35,8 @@ interface Props {
   onFocus: (coords: LatLngTuple[]) => void;
   recalc: Recalc | null;
   onDismissRecalc: () => void;
+  /** Posizione GPS durante la guida vocale, mostrata sulla mappa */
+  onPosition: (coordinate: LatLngTuple) => void;
 }
 
 /** Cosa è successo al percorso dopo l'ultima segnalazione. */
@@ -76,9 +81,13 @@ function PlaceField(props: {
 
   async function search(e: FormEvent) {
     e.preventDefault();
+    await runSearch(q);
+  }
+
+  async function runSearch(text: string) {
     setBusy(true); setErr(null); setResults(null);
     try {
-      const r = await api.geocode(q);
+      const r = await api.geocode(text);
       setResults(r);
       if (!r.length) setErr('Non abbiamo trovato questo indirizzo a Pisa. Prova a scriverlo in un altro modo o scegli il punto sulla mappa.');
     } catch (ex) {
@@ -105,6 +114,9 @@ function PlaceField(props: {
               <Icon name="search" /> {busy ? 'Cerco…' : 'Cerca'}
             </button>
           </form>
+          {/* Dettatura: il testo riconosciuto viene cercato subito, ma il risultato va comunque scelto dall'elenco */}
+          <DictationButton label={`Detta ${props.label.toLowerCase()}`} value={q} maxLength={200}
+            onTranscript={(text) => { const query = spokenPlaceQuery(text); setQ(query); void runSearch(query); }} />
           <div className="row">
             <button type="button" className={`btn btn--ghost btn--sm${props.picking ? ' is-active' : ''}`} aria-pressed={props.picking} onClick={props.onPick}>
               <Icon name="pin" /> {props.picking ? 'Tocca la mappa…' : 'Scegli sulla mappa'}
@@ -168,8 +180,8 @@ function verdictOf(route: RouteResult, alerts: RouteAlert[]): { tone: 'warn' | '
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
-  route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; onFocus: Props['onFocus']; compare: Compare;
+function RouteSummary({ route, analysis, onSelect, onFocus, onPosition, compare }: {
+  route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; onFocus: Props['onFocus']; onPosition: Props['onPosition']; compare: Compare;
 }) {
   const alerts = routeAlerts(route, analysis);
   const v = verdictOf(route, alerts);
@@ -228,6 +240,8 @@ function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
           </ol>
         </section>
       )}
+
+      {route.mode === 'wheelchair' && <NavigationPanel route={route} onPosition={onPosition} />}
 
       <p className="footnote">Basato sulla mappa libera OpenStreetMap: nessuno ha controllato questo percorso di persona.</p>
 
@@ -293,7 +307,7 @@ export function RoutePanel(p: Props) {
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing(true)}>Modifica</button>
         </div>
         {p.recalc && <RecalcBanner recalc={p.recalc} onDismiss={p.onDismissRecalc} onRetry={p.onCalculate} />}
-        <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} compare={p} />
+        <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} onPosition={p.onPosition} compare={p} />
       </section>
     );
   }
@@ -315,7 +329,7 @@ export function RoutePanel(p: Props) {
         </button>
       </div>
       {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
-      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} compare={p} />}
+      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} onPosition={p.onPosition} compare={p} />}
       {!p.route && !p.error && !p.loading && (
         <p className="hint">Scegli partenza e arrivo: ti mostriamo un percorso per la sedia a rotelle e gli ostacoli da conoscere lungo la strada.</p>
       )}

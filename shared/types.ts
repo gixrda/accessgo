@@ -108,6 +108,8 @@ export interface RouteResult {
   notice?: string;
   /** Verifica dei tratti (pedonali, con marciapiede, in carreggiata); assente per il percorso di confronto */
   safety?: RouteSafety;
+  /** Istruzioni di svolta del servizio di routing (Valhalla, in italiano), posizionate sulla geometria; vuoto se non affidabili */
+  maneuvers?: import('./navigation.ts').RouteManeuver[];
   /** Segnalazioni bloccanti escluse dal calcolo (aree di ~10 m attorno al punto) */
   avoidedBlocking?: number;
   /** true se il percorso non evita tutte le segnalazioni da evitare (verificato sulla geometria) */

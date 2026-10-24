@@ -5,6 +5,7 @@ import { CATEGORY_LABEL } from '../lib/labels.ts';
 import type { Recalc } from '../lib/reroute.ts';
 import { RECALC_TEXT } from './RoutePanel.tsx';
 import { toJpegDataUrl } from '../lib/photo.ts';
+import { DictationButton } from './DictationButton.tsx';
 import { Icon } from './Icon.tsx';
 import { Interpretation } from './DetailPanel.tsx';
 import type { PickMode } from './MapView.tsx';
@@ -155,6 +156,8 @@ export function ReportPanel(p: Props) {
           <textarea id="desc" rows={3} maxLength={1000} value={description} onChange={(e) => setDescription(e.target.value)}
             placeholder="Es. C'è un gradino alto davanti all'ingresso e non si passa."
             aria-invalid={error !== null && tooShort} />
+          <DictationButton label="Detta la descrizione" value={description} maxLength={1000 - description.length}
+            onTranscript={(text) => setDescription(description.trim() ? `${description.trim()} ${text}` : text)} />
           {photo ? (
             <div className="photo">
               <img src={photo} alt="Anteprima della foto allegata" />
