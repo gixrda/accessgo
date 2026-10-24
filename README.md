@@ -4,6 +4,12 @@ Web app che aiuta le persone con disabilità motorie a orientarsi a Pisa (zona u
 
 > L'assenza di dati sugli ostacoli non significa che un percorso sia accessibile. AccessGo non dichiara mai "accessibile" un tratto senza dati, e nessun percorso è verificato sul posto.
 
+## Edizione pubblica mobile
+
+La versione pubblicata su **[accessogo.xyxzwb.chatgpt.site](https://accessogo.xyxzwb.chatgpt.site/)** è disponibile nella cartella **[cloud/](cloud/README.md)**, con istruzioni e dipendenze proprie. Include layout mobile, filtro degli ostacoli lungo il percorso, ricerca indirizzi e correzioni della tastiera di Safari su iPhone.
+
+L'app Node/Vite nella radice conserva gli aggiornamenti del team a `b7a833c`. L'edizione cloud è uno snapshot separato con backend Workers/D1 e accesso ChatGPT per inviare segnalazioni: le due architetture non sono state fuse. Per avviare il sito pubblico in locale, seguire `cloud/README.md`; i comandi qui sotto avviano l'app del team. Una modifica su GitHub non ripubblica automaticamente il sito.
+
 ## Avvio rapido
 
 Requisiti: **Node.js ≥ 23.6** (il backend è TypeScript eseguito nativamente da Node, senza build). Testato con Node 26.

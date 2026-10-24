@@ -1,0 +1,14 @@
+@import 'leaflet/dist/leaflet.css';
+@import '../src/styles.css';
+
+.app-loading {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+.app-loading .brand__mark { background: var(--brand); color: white; }
