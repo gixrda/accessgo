@@ -17,6 +17,11 @@ const PICK_PROMPT: Record<Exclude<PickMode, null>, string> = {
   report: "Tocca il punto esatto dell'ostacolo",
 };
 
+function placeFromUrl(key: string, label: string): Place | null {
+  const [lat, lng] = (new URLSearchParams(window.location.search).get(key) ?? '').split(',').map(Number);
+  return inPisa(lat, lng) ? { lat, lng, label: `${label} (${lat.toFixed(4)}, ${lng.toFixed(4)})` } : null;
+}
+
 export default function App() {
   const [status, setStatus] = useState<ServerStatus | null>(null);
   const [osm, setOsm] = useState<OsmDataset | null>(null);
@@ -30,8 +35,9 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<Focus>(null);
 
-  const [from, setFrom] = useState<Place | null>(null);
-  const [to, setTo] = useState<Place | null>(null);
+  // ?from=lat,lng&to=lat,lng precompila partenza e destinazione (link ripetibili per la demo).
+  const [from, setFrom] = useState<Place | null>(() => placeFromUrl('from', 'Partenza dal link'));
+  const [to, setTo] = useState<Place | null>(() => placeFromUrl('to', 'Destinazione dal link'));
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [footRoute, setFootRoute] = useState<RouteResult | null>(null);
   const [showFoot, setShowFoot] = useState(true);
@@ -169,7 +175,8 @@ export default function App() {
               <RoutePanel from={from} to={to} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} onCalculate={calculate} loading={routeLoading} error={routeError}
                 route={route} analysis={analysis} footRoute={footRoute} footAnalysis={footAnalysis}
-                showFoot={showFoot} setShowFoot={setShowFoot} onSelect={select} />
+                showFoot={showFoot} setShowFoot={setShowFoot} onSelect={select}
+                onFocus={(coords) => setFocus({ coords, nonce: Date.now() })} />
             ) : (
               <ReportPanel point={reportPoint} setPoint={setReportPoint} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} status={status}

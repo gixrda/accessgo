@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { GeocodeResult, OsmFeature, Report, RouteResult } from '../../shared/types.ts';
+import type { GeocodeResult, LatLngTuple, OsmFeature, RouteResult, RouteSafety } from '../../shared/types.ts';
 import { api } from '../api.ts';
 import { formatDistance, formatDuration, routeObstacles, type RouteAnalysis } from '../lib/analysis.ts';
 import { compareRoutes, comparisonVerdict } from '../lib/compare.ts';
@@ -28,6 +28,7 @@ interface Props {
   showFoot: boolean;
   setShowFoot: (v: boolean) => void;
   onSelect: (s: Selection) => void;
+  onFocus: (coords: LatLngTuple[]) => void;
 }
 
 type Compare = Pick<Props, 'footRoute' | 'footAnalysis' | 'showFoot' | 'setShowFoot'>;
@@ -149,6 +150,58 @@ function ObstacleList({ analysis, onSelect }: { analysis: RouteAnalysis; onSelec
   );
 }
 
+const SEGMENT_LABEL = {
+  carriageway: 'su carreggiata senza marciapiede mappato',
+  main_road: 'su strada principale senza marciapiede mappato',
+  steps: 'su scale',
+} as const;
+
+/** Tipo di tratti del percorso: non dichiara mai "sicuro", solo ciò che i dati permettono di verificare. */
+function SafetyCard({ safety, onFocus }: { safety: RouteSafety; onFocus: Props['onFocus'] }) {
+  if (!safety.checked) {
+    return (
+      <section className="safety" aria-labelledby="safety-title">
+        <h3 id="safety-title" className="safety__title">Tratti del percorso</h3>
+        <p className="msg msg--warn">Verifica dei tratti non disponibile in questo momento: non sappiamo se il percorso usa marciapiedi o carreggiata. Controlla la mappa prima di proseguire.</p>
+      </section>
+    );
+  }
+  const total = safety.pedestrianM + safety.sidewalkM + safety.carriagewayM || 1;
+  const pct = (m: number) => `${(m / total) * 100}%`;
+  return (
+    <section className="safety" aria-labelledby="safety-title">
+      <h3 id="safety-title" className="safety__title">Tratti del percorso</h3>
+      <div className="safety__bar" aria-hidden="true">
+        <span className="is-pedestrian" style={{ width: pct(safety.pedestrianM) }} />
+        <span className="is-sidewalk" style={{ width: pct(safety.sidewalkM) }} />
+        <span className="is-carriageway" style={{ width: pct(safety.carriagewayM) }} />
+      </div>
+      <ul className="safety__legend">
+        <li><span className="key is-pedestrian" aria-hidden="true" />Pedonali o attraversamenti: <strong>{formatDistance(safety.pedestrianM)}</strong></li>
+        <li><span className="key is-sidewalk" aria-hidden="true" />Strade con marciapiede mappato: <strong>{formatDistance(safety.sidewalkM)}</strong></li>
+        <li><span className="key is-carriageway" aria-hidden="true" />Carreggiata senza marciapiede mappato: <strong>{formatDistance(safety.carriagewayM)}</strong></li>
+      </ul>
+      {safety.verifiable ? (
+        <p className="msg">Nei dati OpenStreetMap tutto il percorso è su tratti pedonali o strade con marciapiede. Non è una garanzia delle condizioni reali.</p>
+      ) : (
+        <>
+          <p className="msg msg--warn" role="note">Non è stato possibile trovare un percorso sufficientemente verificabile. Controlla la mappa prima di proseguire.</p>
+          <ul className="safety__segments">
+            {safety.segments.map((s, i) => (
+              <li key={i}>
+                <button type="button" onClick={() => onFocus(s.coords)}>
+                  <strong>{s.name ?? 'Tratto senza nome'}</strong> · {formatDistance(s.lengthM)} {SEGMENT_LABEL[s.kind]}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {safety.choice && <p className="field__help">{safety.choice}</p>}
+    </section>
+  );
+}
+
 function CompareCard({ route, analysis, foot, footAnalysis, showFoot, setShowFoot, onSelect }: {
   route: RouteResult; analysis: RouteAnalysis; foot: RouteResult; footAnalysis: RouteAnalysis;
   showFoot: boolean; setShowFoot: (v: boolean) => void; onSelect: Props['onSelect'];
@@ -183,8 +236,8 @@ function CompareCard({ route, analysis, foot, footAnalysis, showFoot, setShowFoo
   );
 }
 
-function RouteSummary({ route, analysis, onSelect, compare }: {
-  route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; compare: Compare;
+function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
+  route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; onFocus: Props['onFocus']; compare: Compare;
 }) {
   const pct = Math.round(analysis.coverage * 100);
   return (
@@ -212,6 +265,7 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
       </dl>
 
       <ObstacleList analysis={analysis} onSelect={onSelect} />
+      {route.safety && <SafetyCard safety={route.safety} onFocus={onFocus} />}
 
       {route.mode === 'wheelchair' && compare.footRoute && compare.footAnalysis && (
         <CompareCard route={route} analysis={analysis} foot={compare.footRoute} footAnalysis={compare.footAnalysis}
@@ -221,6 +275,9 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
       <ol className="ladder" aria-label="Affidabilità delle informazioni">
         <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Percorso calcolato</li>
         <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Confrontato con OpenStreetMap e segnalazioni</li>
+        {route.safety?.verifiable
+          ? <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Tratti pedonali o con marciapiede nei dati</li>
+          : <li className="ladder__step is-missing"><span aria-hidden="true">✕</span> Tratti pedonali non verificabili nei dati</li>}
         <li className="ladder__step is-missing"><span aria-hidden="true">✕</span> Non verificato sul posto</li>
       </ol>
 
@@ -261,7 +318,7 @@ export function RoutePanel(p: Props) {
           disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti">⇅</button>
       </div>
       {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
-      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} compare={p} />}
+      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} compare={p} />}
       {!p.route && !p.error && !p.loading && (
         <p className="hint">Imposta partenza e destinazione cercando un indirizzo o toccando la mappa. AccessGo mostra le criticità note e quanto sono complete le informazioni lungo il tragitto.</p>
       )}

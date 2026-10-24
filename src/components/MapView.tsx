@@ -132,6 +132,11 @@ export function MapView(p: Props) {
       )}
       {p.route && (
         <>
+          {/* Tratti non verificati: alone ambra tratteggiato attorno al percorso, elencati anche nel pannello */}
+          {p.route.safety?.segments.map((s, i) => (
+            <Polyline key={`seg-${i}`} positions={s.coords} interactive={false}
+              pathOptions={{ color: s.kind === 'carriageway' ? '#E8A317' : '#B54800', weight: 18, opacity: 0.9, dashArray: '8 6', lineCap: 'butt' }} />
+          ))}
           <Polyline positions={p.route.coords} interactive={false} pathOptions={{ color: '#ffffff', weight: 11, opacity: 0.9 }} />
           <Polyline
             positions={p.route.coords}

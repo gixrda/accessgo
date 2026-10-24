@@ -179,13 +179,16 @@ describe('API con credenziali', () => {
   beforeEach(() => start({ ORS_API_KEY: 'ors', ADMIN_TOKEN: 'segreto' }));
 
   it('usa il profilo wheelchair di OpenRouteService', async () => {
+    const orsCalls: RequestInit[] = [];
     mockExternal((url, init) => {
+      if (url.includes('trace_attributes')) return new Response('', { status: 503 }); // verifica tratti non disponibile
       expect(url).toBe('https://api.openrouteservice.org/v2/directions/wheelchair/geojson');
-      expect((init?.headers as Record<string, string>).Authorization).toBe('ors');
+      orsCalls.push(init!);
       return Response.json({ features: [{ geometry: { coordinates: [[10.4, 43.716], [10.404, 43.719]] }, properties: { summary: { distance: 700, duration: 600 } } }] });
     });
     expect(await (await post('/api/route', { from: PISA, to: PISA })).json())
-      .toMatchObject({ mode: 'wheelchair', provider: 'openrouteservice', distanceM: 700, durationS: 600 });
+      .toMatchObject({ mode: 'wheelchair', provider: 'openrouteservice', distanceM: 700, durationS: 600, safety: { checked: false } });
+    expect((orsCalls[0].headers as Record<string, string>).Authorization).toBe('ors');
   });
 
   it('con chiave ORS non valida usa Valhalla e lo dichiara', async () => {

@@ -97,6 +97,30 @@ export interface RouteResult {
   durationS: number | null;
   /** Motivo del ripiego, se il servizio preferito non ha risposto */
   notice?: string;
+  /** Verifica dei tratti (pedonali, con marciapiede, in carreggiata); assente per il percorso di confronto */
+  safety?: RouteSafety;
+}
+
+export interface SafetySegment {
+  /** carriageway = carreggiata senza marciapiede mappato; main_road = strada principale senza marciapiede; steps = scale */
+  kind: 'carriageway' | 'main_road' | 'steps';
+  lengthM: number;
+  name?: string;
+  coords: LatLngTuple[];
+}
+
+export interface RouteSafety {
+  /** false se la verifica dei tratti non era disponibile: il percorso non è verificato */
+  checked: boolean;
+  pedestrianM: number;
+  sidewalkM: number;
+  carriagewayM: number;
+  segments: SafetySegment[];
+  /** true solo se tutti i tratti sono pedonali o su strade con marciapiede mappato */
+  verifiable: boolean;
+  alternatives: number;
+  /** Perché è stato scelto questo percorso tra le alternative */
+  choice?: string;
 }
 
 export interface ServerStatus {

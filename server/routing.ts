@@ -1,5 +1,6 @@
 import type { LatLngTuple, RouteResult } from '../shared/types.ts';
 import { HttpError, USER_AGENT, type Env } from './errors.ts';
+import { chooseSafest } from './safety.ts';
 
 type Point = { lat: number; lng: number };
 
@@ -10,29 +11,40 @@ const NO_WHEELCHAIR_ROUTE = 'Nessun percorso per sedia a rotelle trovato tra que
  * 1. OpenRouteService "wheelchair" se c'è ORS_API_KEY (chiave gratuita; considera anche i cordoli);
  * 2. Valhalla "pedestrian/wheelchair" sull'istanza pubblica FOSSGIS (senza chiave);
  * 3. solo se nessuno dei due risponde: percorso pedonale OSRM, marcato mode="foot_fallback" e dichiarato nell'interfaccia.
+ * Ogni percorso candidato viene verificato tratto per tratto (server/safety.ts): si scartano strade principali
+ * senza marciapiede e scale, e tra le alternative si preferisce quella con meno carreggiata senza marciapiede.
  */
 export async function getRoute(from: Point, to: Point, env: Env): Promise<RouteResult> {
-  const routers = env.ORS_API_KEY
-    ? [() => orsWheelchair(from, to, env.ORS_API_KEY!), () => valhalla(from, to, 'wheelchair')]
-    : [() => valhalla(from, to, 'wheelchair')];
+  const sources = env.ORS_API_KEY
+    ? [() => orsWheelchair(from, to, env.ORS_API_KEY!).then((r) => [r]), () => valhalla(from, to, 'wheelchair', 2)]
+    : [() => valhalla(from, to, 'wheelchair', 2)];
   let reason = '';
-  for (const route of routers) {
+  let unsafe: HttpError | null = null;
+  for (const [i, source] of sources.entries()) {
     try {
-      const r = await route();
+      const r = await chooseSafest(await source(), true);
       return reason ? { ...r, notice: reason } : r;
     } catch (e) {
       // "Nessun percorso per sedia a rotelle" è un risultato, non un guasto: non lo sostituiamo con un altro percorso.
       if (e instanceof HttpError && e.status === 404) throw e;
+      // Percorsi trovati ma tutti pericolosi: si prova il servizio successivo, altrimenti si comunica il limite.
+      if (e instanceof HttpError && e.status === 422) {
+        unsafe = e;
+        if (i === sources.length - 1) throw e;
+        continue;
+      }
       reason = e instanceof HttpError ? e.message : 'Servizio di routing per sedia a rotelle non raggiungibile.';
     }
   }
-  return { ...(await osrmFoot(from, to)), notice: `${reason} Mostrato un percorso pedonale standard.` };
+  if (unsafe) throw unsafe;
+  const foot = await chooseSafest([await osrmFoot(from, to)], true);
+  return { ...foot, notice: `${reason} Mostrato un percorso pedonale standard.` };
 }
 
 /** Percorso pedonale standard per il confronto: stesso motore (Valhalla) del profilo sedia a rotelle, OSRM come riserva. */
 export async function getFootRoute(from: Point, to: Point): Promise<RouteResult> {
   try {
-    return await valhalla(from, to, 'foot');
+    return (await valhalla(from, to, 'foot'))[0];
   } catch (e) {
     if (e instanceof HttpError && e.status === 404) throw e;
     return { ...(await osrmFoot(from, to)), mode: 'foot' };
@@ -66,7 +78,7 @@ async function orsWheelchair(from: Point, to: Point, key: string): Promise<Route
 
 type OsrmResponse = { code: string; routes?: { distance: number; duration: number; geometry: { coordinates: [number, number][] } }[] };
 
-async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot'): Promise<RouteResult> {
+async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot', alternates = 0): Promise<RouteResult[]> {
   const res = await fetch('https://valhalla1.openstreetmap.de/route', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
@@ -76,6 +88,7 @@ async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot'): Pr
       // type=wheelchair: 4 km/h e solo fondi compatti o migliori. Valhalla penalizza le scale senza escluderle:
       // con la penalità massima ammessa (12 h) le usa solo se non esiste alternativa, e l'analisi le segnala.
       costing_options: { pedestrian: type === 'wheelchair' ? { type, step_penalty: 43_200 } : { type } },
+      ...(alternates ? { alternates } : {}),
       format: 'osrm',
       shape_format: 'geojson',
     }),
@@ -84,14 +97,14 @@ async function valhalla(from: Point, to: Point, type: 'wheelchair' | 'foot'): Pr
   if (res.status === 429) throw new HttpError(503, 'Troppe richieste al servizio di routing per sedia a rotelle.');
   const json = await res.json().catch(() => null) as OsrmResponse | null;
   if (json?.code === 'NoRoute') throw new HttpError(404, type === 'wheelchair' ? NO_WHEELCHAIR_ROUTE : 'Nessun percorso trovato tra questi punti.');
-  const r = json?.code === 'Ok' ? json.routes?.[0] : undefined;
-  if (!res.ok || !r) throw new HttpError(502, 'Il servizio di routing per sedia a rotelle ha restituito un errore.');
-  return {
+  const routes = json?.code === 'Ok' ? json.routes ?? [] : [];
+  if (!res.ok || !routes.length) throw new HttpError(502, 'Il servizio di routing per sedia a rotelle ha restituito un errore.');
+  return routes.map((r) => ({
     mode: type, provider: 'valhalla',
     coords: r.geometry.coordinates.map(([lng, lat]): LatLngTuple => [lat, lng]),
     distanceM: r.distance,
     durationS: r.duration,
-  };
+  }));
 }
 
 async function osrmFoot(from: Point, to: Point): Promise<RouteResult> {

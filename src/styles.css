@@ -198,6 +198,23 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
   display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
   background: var(--ink); color: #fff; font: 700 12px/1 var(--font); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
+.safety { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); }
+.safety__title { font-size: 1rem; }
+.safety__bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--bg); }
+.safety__bar span { display: block; height: 100%; }
+.safety__legend { list-style: none; margin: 0; padding: 0; font-size: 0.88rem; display: flex; flex-direction: column; gap: 2px; }
+.safety__legend li { display: flex; align-items: center; gap: 8px; }
+.safety__legend strong { margin-left: auto; }
+.key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; flex: none; }
+.is-pedestrian { background: var(--positive); }
+.is-sidewalk { background: var(--primary); }
+.is-carriageway { background: repeating-linear-gradient(135deg, #e8a317 0 4px, #6b4a00 4px 6px); }
+.safety__segments { list-style: none; margin: 0; padding: 0; }
+.safety__segments button {
+  width: 100%; min-height: 40px; padding: 6px 8px; text-align: left; background: none; border: 0; border-radius: 6px;
+  cursor: pointer; font-size: 0.9rem;
+}
+.safety__segments button:hover { background: var(--bg); }
 .compare { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); }
 .compare__title { font-size: 1rem; }
 .compare__table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
