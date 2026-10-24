@@ -497,3 +497,28 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .route-risk__counts dd { margin: 3px 0 0; font-size: 1.1rem; font-weight: 700; }
 .route-risk__warning { color: #714900; background: #fff5d9; border-radius: 6px; padding: 8px; }
 .route-risk__note { margin-bottom: 0 !important; }
+
+.route-risk--compact { padding: 11px 12px; margin-block: 10px; }
+.route-risk--compact h3 { font-size: 1rem; margin-bottom: 5px; }
+.route-risk--compact > p { font-size: .79rem; line-height: 1.4; margin-block: 5px; }
+.route-risk--compact .route-risk__details { margin-top: 4px; }
+.route-risk--compact .route-risk__details > summary { cursor: pointer; min-height: 40px; padding-block: 10px; font-size: .8rem; font-weight: 700; }
+.route-risk--compact .route-risk__details[open] { border-top: 1px solid #a4b5c366; margin-top: 10px; }
+
+/* Progressive disclosure keeps the route overview focused on the next action. */
+.panel--route-ready { gap: 10px; }
+.route-endpoints { color: var(--ink-2); font-size: .86rem; line-height: 1.35; overflow-wrap: anywhere; margin-top: -4px; }
+.panel--route-ready .route-risk { margin-block: 0; }
+.route-more { border-top: 1px solid var(--line); padding-top: 4px; }
+.route-more > summary { min-height: 44px; padding-block: 10px; color: var(--primary); font-weight: 600; cursor: pointer; }
+.route-more > .summary { padding-top: 10px; }
+.panel--route-ready .voice-navigation { margin: 2px 0; padding: 0; border: 0; background: transparent; }
+.panel--route-ready .voice-navigation__actions { margin-block: 8px; }
+.panel--route-ready .voice-navigation__actions > .btn { flex: 1 1 100%; }
+.panel--route-ready .voice-navigation__status:empty { display: none; }
+.panel--route-ready .voice-navigation__options { border-top: 1px solid var(--line); }
+.panel--route-ready .voice-navigation__options > summary { color: var(--primary); font-weight: 600; font-size: .88rem; min-height: 44px; }
+.panel--route-ready .manual-route { padding-top: 4px; }
+.panel--route-ready .voice-route--applied { padding: 0; border: 0; background: transparent; }
+.panel--route-ready .voice-route--applied h3 { font-size: .82rem; color: var(--ink-2); }
+.disclaimer { margin-top: 16px; padding-top: 8px; font-size: .74rem; }

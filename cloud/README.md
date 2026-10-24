@@ -129,4 +129,10 @@ Le API voce sono `/api/voice/status`, `/api/voice/transcribe` e `/api/voice/spea
 
 Riferimenti tecnici: [ElevenLabs STT](https://elevenlabs.io/docs/api-reference/speech-to-text/convert), [ElevenLabs TTS](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [Valhalla directions](https://valhalla.github.io/valhalla/api/route/api-reference/).
 
+## Compact route interface (v8)
+
+After a route is calculated, the main view keeps the route endpoints, concise risk summary, distance, duration and voice-navigation start/stop visible. Risk details, voice previews and step lists, itinerary editing, and route comparison are available through labeled disclosures. Critical blocked/unavailable warnings remain visible without expanding anything. The comparison foot route is hidden by default. No routing or report-verification rules changed.
+
+Validated with 520 automated tests, TypeScript checks and a mobile-width browser journey from Piazza Dante to Torre di Pisa, including reopening voice options. Actual iPhone hardware behavior remains a separate manual check.
+
 Source and deployment history: [SOURCE.md](SOURCE.md). The root app and this cloud edition remain separate.

@@ -239,7 +239,10 @@ describe('report draft across actual App navigation', () => {
     expect(screen.getByLabelText('Centro richiesto').textContent).toBe(beforePicking);
 
     switchTab('Percorso');
-    fireEvent.click(screen.getByRole('button', { name: 'Calcola percorso' }));
+    const manual = screen.getByText('Modifica le tappe').closest('details')!;
+    expect(manual.open).toBe(false);
+    fireEvent.click(screen.getByText('Modifica le tappe'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Calcola percorso' }));
     fireEvent.click(screen.getByRole('button', { name: 'Apri dettaglio di prova' }));
     const beforeDetail = screen.getByLabelText('Centro richiesto').textContent;
     expect(JSON.parse(beforeDetail!).coords).toEqual([[point.lat, point.lng]]);

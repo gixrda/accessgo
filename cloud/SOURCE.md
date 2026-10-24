@@ -1,3 +1,9 @@
+# Cloud v8: compact route interface
+
+Published 2026-10-24 at 13:51:59 UTC. Source commit `e8eb6cf4cda20e4b20c55b0de63044f9a775d728`.
+
+Risk details, voice previews and turn lists, itinerary editing, and route comparison use default-closed disclosures. Route overview and blocked-route warnings remain visible. TypeScript checks, 520 tests, production build and mobile-width browser route journey passed.
+
 # Aggiornamento v7 · deviazioni per ostacoli e rischi visibili
 
 - Sorgente Sites: `38d44a5c9daf48d2a083534c76adbcda48df3e94`.

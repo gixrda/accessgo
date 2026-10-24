@@ -179,9 +179,11 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
 export function RoutePanel(p: Props) {
   const [manualOpen, setManualOpen] = useState(true);
   useEffect(() => { if (p.voiceRequest) setManualOpen(false); }, [p.voiceRequest?.id]);
+  useEffect(() => { if (p.route) setManualOpen(false); }, [p.route]);
   return (
-    <section aria-labelledby="route-title" className="panel">
-      <h2 id="route-title" className="panel__title">Trova un percorso</h2>
+    <section aria-labelledby="route-title" className={`panel${p.route ? ' panel--route-ready' : ''}`}>
+      <h2 id="route-title" className="panel__title">{p.route ? 'Il tuo percorso' : 'Trova un percorso'}</h2>
+      {p.route && p.from && p.to && <p className="route-endpoints">{p.from.label.split(',')[0]} → {p.to.label.split(',')[0]}{p.via?.length ? ` · ${p.via.length} ${p.via.length === 1 ? 'tappa' : 'tappe'}` : ''}</p>}
       {p.route && <RouteRiskBanner route={p.route} analysis={p.analysis} />}
       {p.onApplyItinerary && <VoiceRoutePanel key={p.voiceResetKey} externalRequest={p.voiceRequest} onRequestConsumed={p.onVoiceRequestConsumed} compact onApply={p.onApplyItinerary} disabled={p.loading} />}
       {p.loading && <p className="msg" role="status">Calcolo il percorso…</p>}
@@ -217,7 +219,7 @@ export function RoutePanel(p: Props) {
         onPick={() => p.setPickMode(p.pickMode === 'to' ? null : 'to')} onSet={(place) => { p.setPickMode(null); p.setTo(place); }} />
       {(p.via?.length ?? 0) > 0 && <p className="help">Visita le tappe nell’ordine indicato, fino a 5 punti. Completa tutte le tappe prima di calcolare.</p>}
       </div></details>
-      {(manualOpen || p.route) && <PanelActions target={p.actionsTarget}>
+      {manualOpen && <PanelActions target={p.actionsTarget}>
       <div className="row">
         <button type="button" className="btn btn--primary btn--block" onClick={p.onCalculate} disabled={!p.from || !p.to || p.via?.some((stop) => !stop.place) || p.loading}>
           {p.loading ? 'Calcolo in corso…' : 'Calcola percorso'}
@@ -226,9 +228,12 @@ export function RoutePanel(p: Props) {
           disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti">⇅</button>
       </div>
       </PanelActions>}
-      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} compare={p} />}
+      {p.route && p.analysis && <details className="route-more">
+        <summary>Dati e confronto percorsi</summary>
+        <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} compare={p} />
+      </details>}
       {!p.route && !p.error && !p.loading && (
-        <p className="hint">Imposta partenza e destinazione cercando un indirizzo o toccando la mappa. AccessGo mostra le criticità note e quanto sono complete le informazioni lungo il tragitto.</p>
+        <p className="hint">Cerca un luogo in alto o scegli partenza e destinazione sulla mappa.</p>
       )}
     </section>
   );

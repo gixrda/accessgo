@@ -166,6 +166,8 @@ export function VoiceRoutePanel({ onApply, disabled = false, externalRequest, co
     latest.current.onApply({ from: values[0].selected!, to: values[values.length - 1].selected!, via: values.slice(1, -1).map((field) => field.selected!) });
   }
 
+  if (compact && !busy && !intent && !error && !applied) return null;
+
   if (applied) return <section className="voice-route voice-route--applied" aria-labelledby={`${id}-title`}>
     <h3 id={`${id}-title`}>Percorso impostato</h3>
     <p className="hint">La richiesta è confermata. Consulta il risultato del percorso e la mappa.</p>
