@@ -64,25 +64,25 @@ describe('interpret', () => {
 
   it('usa Gemma via Google AI Studio quando la chiave è presente', async () => {
     const fetchMock = vi.fn(async () => Response.json({
-      candidates: [{ content: { parts: [{ text: '```json\n{"category":"steps","obstacle":"gradino","summary":"Gradino segnalato come difficoltoso","severity":"unknown","missing_info":["altezza"]}\n```' }] } }],
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '```json\n{"category":"steps","evidence":"gradino troppo alto","obstacle":"gradino","summary":"Gradino segnalato come difficoltoso","severity":"unknown","missing_info":["altezza"]}\n```' }] } }],
     }));
     vi.stubGlobal('fetch', fetchMock);
     const r = await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' });
-    expect(r).toMatchObject({ engine: 'gemma', model: 'gemma-3-27b-it', category: 'steps' });
+    expect(r).toMatchObject({ engine: 'gemma', model: 'gemma-4-26b-a4b-it', category: 'steps' });
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toContain('/models/gemma-3-27b-it:generateContent');
+    expect(url).toContain('/models/gemma-4-26b-a4b-it:generateContent');
     expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('k');
   });
 
   it('usa Ollama quando configurato', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ message: { content: '{"category":"kerb","obstacle":null,"summary":"Cordolo alto","severity":"unknown","missing_info":[]}' } })));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ done: true, message: { content: '{"category":"kerb","evidence":"cordolo alto","obstacle":null,"summary":"Cordolo alto","severity":"unknown","missing_info":[]}' } })));
     expect(await interpret('cordolo alto', { OLLAMA_URL: 'http://localhost:11434', OLLAMA_MODEL: 'gemma3' })).toMatchObject({ engine: 'gemma', model: 'gemma3', category: 'kerb' });
   });
 
   it('se il servizio AI fallisce o risponde male, usa il fallback e lo dichiara', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('err', { status: 500 })));
     expect(await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).toMatchObject({ engine: 'fallback', note: expect.stringMatching(/non disponibile/) });
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ candidates: [{ content: { parts: [{ text: 'Non so.' }] } }] })));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'Non so.' }] } }] })));
     expect(await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).toMatchObject({ engine: 'fallback', note: expect.stringMatching(/non valida/) });
   });
 });
