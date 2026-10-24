@@ -7,10 +7,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
   } catch {
-    throw new Error('Connessione non disponibile. Riprova.');
+    throw new Error('Sei offline o la connessione è lenta. Controlla la rete e riprova.');
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((data as { error?: string } | null)?.error ?? 'Si è verificato un errore. Riprova.');
+  if (!res.ok) throw new Error((data as { error?: string } | null)?.error ?? 'Qualcosa non ha funzionato. Riprova tra poco.');
   return data as T;
 }
 
@@ -22,7 +22,7 @@ export const api = {
   reports: () => request<Report[]>('/api/reports'),
   draftReport: (body: { description: string; photo?: string }) =>
     request<ReportDraft>('/api/reports/draft', { method: 'POST', body: JSON.stringify(body) }),
-  createReport: (body: Point & { description: string; category?: ReportCategory; draftId?: string; answer?: string }) =>
+  createReport: (body: Point & { description: string; category?: ReportCategory; draftId?: string; answer?: string; blocking?: boolean | null }) =>
     request<Report>('/api/reports', { method: 'POST', body: JSON.stringify(body) }),
   setStatus: (id: string, status: VerificationStatus, token: string) =>
     request<Report>(`/api/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'x-admin-token': token } }),

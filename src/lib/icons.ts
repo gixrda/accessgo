@@ -2,7 +2,7 @@ import type { FeatureKind } from '../../shared/types.ts';
 
 // Glifi SVG 16×16 a tratto, usati sia nei marker Leaflet (come stringa HTML) sia nei pannelli.
 export type IconName = FeatureKind | 'place' | 'report' | 'other' | 'start' | 'end' | 'locate'
-  | 'warning' | 'info' | 'swap' | 'search' | 'road' | 'check' | 'pin' | 'camera' | 'back';
+  | 'warning' | 'info' | 'swap' | 'search' | 'road' | 'check' | 'pin' | 'camera' | 'back' | 'block';
 
 const PATHS: Record<IconName, string> = {
   steps: 'M2 14h4v-4h4V6h4V2',
@@ -29,6 +29,7 @@ const PATHS: Record<IconName, string> = {
   pin: 'M8 15s5-4.6 5-8.5A5 5 0 0 0 3 6.5C3 10.4 8 15 8 15zM8 4.7a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6z',
   camera: 'M2 5h3l1.5-2h3L11 5h3v8H2zM8 6.8a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6z',
   back: 'M10 3L5 8l5 5',
+  block: 'M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM3.4 3.4l9.2 9.2',
 };
 
 export function iconSvg(name: IconName, size = 16): string {

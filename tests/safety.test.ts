@@ -139,6 +139,39 @@ describe('routing sicuro: casi limite', () => {
   });
 });
 
+describe('ostacoli bloccanti segnalati', () => {
+  const OBST = { lat: 43.715, lng: 10.401 };
+
+  it('esclude un\'area di ~10 m attorno all\'ostacolo e lo dichiara', async () => {
+    const f = mockValhalla([candidate(0, 400, [footway(400)])]);
+    const r = await getRoute(A, B, {}, [OBST]);
+    const body = JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.exclude_polygons).toHaveLength(1);
+    const ring = body.exclude_polygons[0] as [number, number][];
+    expect(ring[0]).toEqual(ring[4]); // anello chiuso, in [lng, lat]
+    expect((ring[2][1] - ring[0][1]) * 110_540).toBeCloseTo(20, 0); // 10 m per lato dal punto
+    expect(r).toMatchObject({ avoidedBlocking: 1 });
+    expect(r.avoidFailed).toBeUndefined();
+  });
+
+  it('se nessun percorso evita l\'ostacolo, ricalcola senza escluderlo e lo dichiara', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const body = JSON.parse(init!.body as string);
+      if (url.endsWith('/route')) {
+        bodies.push(body);
+        if (body.exclude_polygons) return Response.json({ code: 'NoRoute', message: 'Impossible route' }, { status: 400 });
+        return Response.json({ code: 'Ok', routes: [{ distance: 300, duration: 300, geometry: { coordinates: [[10.4, 43.71], [10.41, 43.72]] } }] });
+      }
+      return new Response('', { status: 503 });
+    }));
+    const r = await getRoute(A, B, {}, [OBST]);
+    expect(bodies.map((b) => Boolean(b.exclude_polygons))).toEqual([true, false]);
+    expect(r).toMatchObject({ avoidFailed: true, distanceM: 300 });
+    expect(r.avoidedBlocking).toBeUndefined();
+  });
+});
+
 describe('decodePolyline6 / classifyEdges', () => {
   it('decodifica la geometria di Valhalla', () => {
     const pts: LatLngTuple[] = [[43.714812, 10.395901], [43.7201, 10.405]];

@@ -15,8 +15,8 @@ function line(id: string, coords: LatLngTuple[], certainty: OsmFeature['certaint
 function report(id: string, lat: number, lng: number, status: Report['status'] = 'unverified'): Report {
   return {
     id, lat, lng, description: 'gradino alto', category: 'steps', categorySource: 'interpretation', createdAt: '', status, source: 'user_report',
-    interpretation: { category: 'steps', obstacle: null, summary: '', severity: 'unknown', missing_info: [], question: null, photo_note: null, engine: 'fallback' },
-    hasPhoto: false,
+    interpretation: { category: 'steps', obstacle: null, summary: '', severity: 'unknown', missing_info: [], question: null, photo_note: null, blocking: null, engine: 'fallback' },
+    hasPhoto: false, blocking: null, blockingSource: 'interpretation',
   };
 }
 

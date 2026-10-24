@@ -154,6 +154,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .good-news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.92rem; }
 .good-news li { display: flex; gap: 8px; align-items: flex-start; }
 .good-news .icon { color: var(--positive); flex: none; margin-top: 2px; }
+.good-news .is-warn .icon { color: var(--warn-line); }
 .section-title { font-size: 1rem; margin-bottom: 4px; }
 .alerts { list-style: none; margin: 0; padding: 0; }
 .alerts li + li { border-top: 1px solid var(--line); }
@@ -169,6 +170,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .alert-icon--obstacle { background: #fbe3d6; color: #8f3900; }
 .alert-icon--road { background: var(--warn-bg); color: var(--warn-ink); }
 .alert-icon--report { background: #ece4f6; color: var(--report); }
+.alert-icon--blocking { background: #fbe3d6; color: #8f3900; }
 .route-num {
   display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
   background: var(--ink); color: #fff; font: 700 12px/1 var(--font); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -265,6 +267,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
   display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
   background: #fff; color: var(--report); border: 1.5px dashed var(--report); font-weight: 700; font-size: 10px;
 }
+.pin-mini--block { background: var(--known); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--known); }
 .pin-mini--ok { border-style: solid; color: var(--ok-ink); border-color: var(--positive); }
 .pickbar {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000;
@@ -300,6 +303,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 }
 .pin svg { transform: rotate(45deg); }
 .pin--unverified { border-style: dashed; }
+.pin--blocking { background: var(--known); }
 .pin--resolved { background: var(--info); }
 .pin--draft { background: var(--accent); border-style: dashed; }
 .pin.is-selected { outline: 3px solid var(--primary); outline-offset: 2px; }

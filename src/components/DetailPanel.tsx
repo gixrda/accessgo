@@ -39,7 +39,7 @@ export function Interpretation({ interpretation: i, category, followUp }: {
         <p className="answer"><span>{followUp.question}</span><strong>{followUp.answer}</strong></p>
       )}
       <p className="interp__engine" title={i.model}>
-        {i.engine === 'gemma' ? "Letto da Gemma, l'intelligenza artificiale." : 'Riconosciuto in automatico, senza intelligenza artificiale.'}{i.note ? ` ${i.note}` : ''}
+        {i.engine === 'gemma' ? "Letta dall'intelligenza artificiale (Gemma)." : 'Letta in automatico, senza intelligenza artificiale.'}{i.note ? ` ${i.note}` : ''}
       </p>
     </div>
   );
@@ -65,8 +65,11 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
         <span className={`status status--${report.status}`}>{STATUS_LABEL[report.status]}</span>
         <span className="muted">Segnalata il {dateFmt.format(new Date(report.createdAt))}</span>
       </p>
+      {report.blocking === true && (
+        <p className="msg msg--warn"><strong>Non si passa</strong> con la sedia a rotelle, secondo {report.blockingSource === 'user' ? 'chi ha segnalato' : "l'analisi della segnalazione"}. I percorsi lo evitano.</p>
+      )}
       {report.status === 'unverified' && (
-        <p className="msg msg--warn">Segnalata da un utente: nessuno l'ha ancora controllata sul posto.</p>
+        <p className="msg msg--warn">Segnalata da un utente: nessuno l'ha ancora controllata di persona.</p>
       )}
       <blockquote className="quote">{report.description}</blockquote>
       {report.hasPhoto && <img className="report-photo" src={`/api/reports/${report.id}/photo`} alt="Foto dell'ostacolo allegata da chi segnala" />}

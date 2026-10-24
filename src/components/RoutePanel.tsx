@@ -49,7 +49,7 @@ function PlaceField(props: {
     try {
       const r = await api.geocode(q);
       setResults(r);
-      if (!r.length) setErr('Nessun risultato a Pisa. Prova con un altro indirizzo o seleziona il punto sulla mappa.');
+      if (!r.length) setErr('Non abbiamo trovato questo indirizzo a Pisa. Prova a scriverlo in un altro modo o scegli il punto sulla mappa.');
     } catch (ex) {
       setErr((ex as Error).message);
     } finally { setBusy(false); }
@@ -80,7 +80,7 @@ function PlaceField(props: {
             </button>
             {props.onLocate && (
               <button type="button" className="btn btn--ghost btn--sm" onClick={props.onLocate} disabled={props.locating}>
-                <Icon name="locate" /> {props.locating ? 'Localizzo…' : 'La mia posizione'}
+                <Icon name="locate" /> {props.locating ? 'Cerco dove sei…' : 'La mia posizione'}
               </button>
             )}
           </div>
@@ -121,7 +121,7 @@ const NOT_VERIFIABLE = 'Non è stato possibile trovare un percorso sufficienteme
 /** Esito in una frase: cosa deve sapere chi parte. Non dice mai "sicuro" o "accessibile". */
 function verdictOf(route: RouteResult, alerts: RouteAlert[]): { tone: 'warn' | 'calm'; title: string; text: string } {
   if (route.mode === 'foot_fallback') {
-    return { tone: 'warn', title: 'Percorso a piedi standard', text: `${route.notice ?? ''} Non è calcolato per la sedia a rotelle: può includere scale o gradini.`.trim() };
+    return { tone: 'warn', title: 'Solo percorso a piedi', text: `${route.notice ?? ''} Attenzione: non è pensato per la sedia a rotelle e può avere scale o gradini.`.trim() };
   }
   const unverifiable = !route.safety?.checked || !route.safety.verifiable;
   if (alerts.length) {
@@ -132,7 +132,7 @@ function verdictOf(route: RouteResult, alerts: RouteAlert[]): { tone: 'warn' | '
     };
   }
   if (unverifiable) return { tone: 'warn', title: 'Nessun ostacolo noto', text: NOT_VERIFIABLE };
-  return { tone: 'calm', title: 'Nessun ostacolo noto', text: 'Secondo OpenStreetMap il percorso è su marciapiedi o zone pedonali.' };
+  return { tone: 'calm', title: 'Nessun ostacolo noto', text: 'Secondo i dati della mappa passa solo su marciapiedi e zone pedonali.' };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -162,8 +162,14 @@ function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
         </div>
       </div>
 
-      {(s?.choice || (c && c.avoidedKnown.length > 0)) && (
+      {(s?.choice || route.avoidedBlocking || route.avoidFailed || (c && c.avoidedKnown.length > 0)) && (
         <ul className="good-news">
+          {route.avoidedBlocking ? (
+            <li><Icon name="check" />Evita {plural(route.avoidedBlocking, 'ostacolo che gli utenti hanno segnalato come bloccante', 'ostacoli che gli utenti hanno segnalato come bloccanti')}.</li>
+          ) : null}
+          {route.avoidFailed && (
+            <li className="is-warn"><Icon name="warning" />Non c'è un percorso che eviti un ostacolo segnalato come bloccante: lo trovi nell'elenco qui sotto.</li>
+          )}
           {s?.choice && <li><Icon name="check" />{s.choice}</li>}
           {c && c.avoidedKnown.length > 0 && (
             <li><Icon name="check" />Evita {plural(c.avoidedKnown.length, 'ostacolo', 'ostacoli')} che il percorso a piedi incontrerebbe ({[...new Set(c.avoidedKnown.map((f) => f.label.split(' (')[0].toLowerCase()))].join(', ')}).</li>
@@ -179,7 +185,7 @@ function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
               <li key={a.key}>
                 <button type="button" onClick={() => (a.selection ? onSelect(a.selection) : onFocus(a.focus))}>
                   <span className="route-num" aria-hidden="true">{i + 1}</span>
-                  <span className={`alert-icon alert-icon--${a.kind}`} aria-hidden="true"><Icon name={a.icon} /></span>
+                  <span className={`alert-icon alert-icon--${a.icon === 'block' ? 'blocking' : a.kind}`} aria-hidden="true"><Icon name={a.icon} /></span>
                   <span className="alerts__text">
                     <strong>{a.title}</strong>
                     {a.detail && <span>{a.detail}</span>}
@@ -192,7 +198,7 @@ function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
         </section>
       )}
 
-      <p className="footnote">Calcolato con i dati di OpenStreetMap: nessuno lo ha verificato sul posto.</p>
+      <p className="footnote">Basato sulla mappa libera OpenStreetMap: nessuno ha controllato questo percorso di persona.</p>
 
       <details className="more">
         <summary>Più dettagli</summary>
@@ -205,9 +211,9 @@ function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
               <span className="is-carriageway" style={{ width: pct(s.carriagewayM) }} />
             </div>
             <ul className="road-legend">
-              <li><span className="key is-pedestrian" aria-hidden="true" />Zona pedonale o attraversamento<strong>{formatDistance(s.pedestrianM)}</strong></li>
-              <li><span className="key is-sidewalk" aria-hidden="true" />Strada con marciapiede<strong>{formatDistance(s.sidewalkM)}</strong></li>
-              <li><span className="key is-carriageway" aria-hidden="true" />Strada senza marciapiede<strong>{formatDistance(s.carriagewayM)}</strong></li>
+              <li><span className="key is-pedestrian" aria-hidden="true" />Marciapiedi, zone pedonali e attraversamenti<strong>{formatDistance(s.pedestrianM)}</strong></li>
+              <li><span className="key is-sidewalk" aria-hidden="true" />Lungo strade con marciapiede<strong>{formatDistance(s.sidewalkM)}</strong></li>
+              <li><span className="key is-carriageway" aria-hidden="true" />In strada, senza marciapiede<strong>{formatDistance(s.carriagewayM)}</strong></li>
             </ul>
           </div>
         )}
@@ -228,12 +234,12 @@ function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
           </div>
         )}
         <FeatureList title="Possibili difficoltà minori" items={analysis.possible} onSelect={onSelect} />
-        <FeatureList title="Attraversamenti senza informazioni sul gradino" items={analysis.unknown} onSelect={onSelect} />
+        <FeatureList title="Attraversamenti senza informazioni sullo scivolo" items={analysis.unknown} onSelect={onSelect} />
         <FeatureList title="Elementi utili" items={analysis.positive} onSelect={onSelect} />
         <p className="field__help">
           Percorso calcolato da {route.provider === 'openrouteservice' ? 'OpenRouteService' : route.provider === 'valhalla' ? 'Valhalla (FOSSGIS)' : 'OSRM (FOSSGIS)'}
-          {route.provider === 'valhalla' && ", che evita scale e sterrati ma non conosce l'altezza dei gradini del marciapiede"}.
-          {' '}Dati su fondo, pendenza o larghezza disponibili per il {Math.round(analysis.coverage * 100)}% del tragitto.
+          {route.provider === 'valhalla' && ", che evita scale e sterrati ma non sa dove mancano gli scivoli dei marciapiedi"}.
+          {' '}Sappiamo com'è il fondo per il {Math.round(analysis.coverage * 100)}% del percorso.
           {route.mode === 'wheelchair' && route.notice && ` ${route.notice}`}
         </p>
       </details>
@@ -265,14 +271,14 @@ export function RoutePanel(p: Props) {
       <PlaceField letter="A" label="Partenza" value={p.from} picking={p.pickMode === 'from'}
         onPick={() => p.setPickMode(p.pickMode === 'from' ? null : 'from')} onSet={p.setFrom}
         onLocate={() => p.onLocate('from')} locating={p.locating} />
-      <PlaceField letter="B" label="Destinazione" value={p.to} picking={p.pickMode === 'to'}
+      <PlaceField letter="B" label="Arrivo" value={p.to} picking={p.pickMode === 'to'}
         onPick={() => p.setPickMode(p.pickMode === 'to' ? null : 'to')} onSet={p.setTo} />
       <div className="row">
         <button type="button" className="btn btn--primary btn--block" onClick={() => { setEditing(false); p.onCalculate(); }} disabled={!p.from || !p.to || p.loading}>
-          {p.loading ? 'Calcolo in corso…' : 'Calcola percorso'}
+          {p.loading ? 'Cerco il percorso migliore…' : 'Calcola percorso'}
         </button>
         <button type="button" className="btn btn--ghost" onClick={() => { p.setFrom(p.to); p.setTo(p.from); }}
-          disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti partenza e destinazione">
+          disabled={!p.from && !p.to} aria-label="Scambia partenza e arrivo" title="Scambia partenza e arrivo">
           <Icon name="swap" />
         </button>
       </div>

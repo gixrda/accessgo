@@ -22,9 +22,11 @@ export interface RouteAlert {
 export const PLAIN: Partial<Record<OsmFeature['kind'], string>> = {
   kerb: 'Gradino tra marciapiede e strada',
   steps: 'Nessuna rampa indicata',
-  barrier: 'Può impedire il passaggio',
-  width: 'Una carrozzina potrebbe non passare',
-  smoothness: 'Fondo molto rovinato',
+  barrier: 'Può restringere o bloccare il passaggio',
+  width: 'La sedia a rotelle potrebbe non passare',
+  smoothness: 'Le ruote possono bloccarsi o sobbalzare',
+  surface: 'Le ruote possono bloccarsi o sobbalzare',
+  incline: 'Può servire aiuto per salire o scendere',
 };
 
 const coordsOf = (f: OsmFeature): LatLngTuple[] => f.geometry.type === 'point' ? [f.geometry.coords] : f.geometry.coords;
@@ -35,9 +37,9 @@ export function routeAlerts(route: RouteResult, analysis: RouteAnalysis): RouteA
     if (o.type === 'report') {
       const r = o.report;
       return {
-        key: r.id, kind: 'report', icon: CATEGORY_ICON[r.category] as IconName,
-        title: CATEGORY_LABEL[r.category],
-        detail: r.status === 'unverified' ? 'Segnalato da un utente, non ancora verificato' : 'Segnalato da un utente e verificato',
+        key: r.id, kind: 'report', icon: r.blocking ? 'block' : CATEGORY_ICON[r.category] as IconName,
+        title: r.blocking ? `${CATEGORY_LABEL[r.category]}: non si passa` : CATEGORY_LABEL[r.category],
+        detail: r.status === 'unverified' ? 'Segnalato da un utente, da controllare sul posto' : 'Segnalato da un utente e controllato sul posto',
         alongM: o.alongM, anchor: [r.lat, r.lng], focus: [[r.lat, r.lng]], selection: { type: 'report', report: r },
       };
     }

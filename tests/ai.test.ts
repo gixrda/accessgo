@@ -30,9 +30,15 @@ describe('fallbackInterpret (regole, non AI)', () => {
     expect(fallbackInterpret('Gradino di 15 cm', '').missing_info).not.toContain("Altezza dell'ostacolo");
   });
 
+  it('senza AI considera bloccante solo chi dice chiaramente che non si passa', () => {
+    expect(fallbackInterpret(VIA_ROMA, '').blocking).toBe(true);
+    expect(fallbackInterpret("Un'auto blocca completamente il marciapiede", '').blocking).toBe(true);
+    expect(fallbackInterpret('Il marciapiede è un po\' sconnesso ma si passa con attenzione', '').blocking).toBeNull();
+  });
+
   it('propone una domanda a regole sull\'informazione mancante', () => {
     expect(fallbackInterpret(VIA_ROMA, '').question?.text).toMatch(/alto/);
-    expect(fallbackInterpret('Gradino di 15 cm davanti al bar', '').question?.options).toEqual(['Temporaneo', 'Permanente']);
+    expect(fallbackInterpret('Gradino di 15 cm davanti al bar', '').question?.options).toEqual(['Solo per un periodo', "C'è sempre"]);
     expect(fallbackInterpret('Cantiere permanente con gradino di 15 cm', '').question).toBeNull();
   });
 });
@@ -40,7 +46,7 @@ describe('fallbackInterpret (regole, non AI)', () => {
 describe('validateInterpretation', () => {
   it('accetta un output valido e ignora lo stato di verifica proposto dal modello', () => {
     const v = validateInterpretation({ category: 'steps', obstacle: 'gradino', summary: 'Gradino alto', severity: 'high', missing_info: ['altezza', 3], verification_status: 'verified' });
-    expect(v).toEqual({ category: 'steps', obstacle: 'gradino', summary: 'Gradino alto', severity: 'high', missing_info: ['altezza'], question: null, photo_note: null });
+    expect(v).toEqual({ category: 'steps', obstacle: 'gradino', summary: 'Gradino alto', severity: 'high', missing_info: ['altezza'], question: null, photo_note: null, blocking: null });
     expect(v).not.toHaveProperty('verification_status');
   });
 
@@ -56,6 +62,14 @@ describe('validateInterpretation', () => {
     expect(v({ text: 'Quanto è alto?', options: ['solo una'] })).toBeNull();
     expect(v({ options: ['a', 'b'] })).toBeNull();
     expect(v(null)).toBeNull();
+  });
+
+  it('accetta "blocking" solo se booleano', () => {
+    const b = (blocking: unknown) => validateInterpretation({ category: 'steps', summary: 'x', blocking })?.blocking;
+    expect(b(true)).toBe(true);
+    expect(b(false)).toBe(false);
+    expect(b('sì')).toBeNull();
+    expect(b(undefined)).toBeNull();
   });
 
   it('riporta a "unknown" una gravità non valida', () => {
@@ -75,7 +89,7 @@ describe('interpret', () => {
   it('senza credenziali usa il fallback dichiarato', async () => {
     const r = await interpret(VIA_ROMA, {});
     expect(r.engine).toBe('fallback');
-    expect(r.note).toMatch(/non configurato/);
+    expect(r.note).toMatch(/non è attiva/);
   });
 
   it('usa Gemma via Google AI Studio quando la chiave è presente', async () => {
@@ -95,7 +109,7 @@ describe('interpret', () => {
   });
   const ANSWER = {
     category: 'steps', obstacle: 'gradino', summary: 'Gradino alto', severity: 'unknown', missing_info: [],
-    question: { text: 'Quanto è alto il gradino?', options: ['< 3 cm', '> 3 cm'] }, photo_note: 'Si vede un gradino davanti a una porta',
+    question: { text: 'Quanto è alto il gradino?', options: ['< 3 cm', '> 3 cm'] }, photo_note: 'Si vede un gradino davanti a una porta', blocking: true,
   };
 
   it('invia la foto a Gemma come inline_data e conserva la nota sulla foto', async () => {
@@ -121,7 +135,7 @@ describe('interpret', () => {
     vi.stubGlobal('fetch', fetchMock);
     const r = await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' }, { mime: 'image/jpeg', base64: 'QUJD' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(r).toMatchObject({ engine: 'gemma', photo_note: null, note: 'La foto non è stata analizzata dal modello.' });
+    expect(r).toMatchObject({ engine: 'gemma', photo_note: null, note: "L'intelligenza artificiale non è riuscita a leggere la foto." });
   });
 
   it('ignora una nota sulla foto se nessuna foto è stata inviata', async () => {
@@ -140,8 +154,8 @@ describe('interpret', () => {
 
   it('se il servizio AI fallisce o risponde male, usa il fallback e lo dichiara', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('err', { status: 500 })));
-    expect(await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).toMatchObject({ engine: 'fallback', note: expect.stringMatching(/non disponibile/) });
+    expect(await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).toMatchObject({ engine: 'fallback', note: expect.stringMatching(/non ha risposto/) });
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ candidates: [{ content: { parts: [{ text: 'Non so.' }] } }] })));
-    expect(await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).toMatchObject({ engine: 'fallback', note: expect.stringMatching(/non valida/) });
+    expect(await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).toMatchObject({ engine: 'fallback', note: expect.stringMatching(/non utilizzabile/) });
   });
 });

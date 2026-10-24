@@ -8,7 +8,7 @@ Web app che aiuta le persone con disabilità motorie a orientarsi a Pisa (zona u
 
 La versione pubblicata su **[accessogo.xyxzwb.chatgpt.site](https://accessogo.xyxzwb.chatgpt.site/)** è disponibile nella cartella **[cloud/](cloud/README.md)**, con istruzioni e dipendenze proprie. Include layout mobile, filtro degli ostacoli lungo il percorso, ricerca indirizzi e correzioni della tastiera di Safari su iPhone.
 
-L'app Node/Vite nella radice conserva gli aggiornamenti del team a `b7a833c`. L'edizione cloud è uno snapshot separato con backend Workers/D1 e accesso ChatGPT per inviare segnalazioni: le due architetture non sono state fuse. Per avviare il sito pubblico in locale, seguire `cloud/README.md`; i comandi qui sotto avviano l'app del team. Una modifica su GitHub non ripubblica automaticamente il sito.
+L'app Node/Vite nella radice è quella su cui lavora il team e contiene le funzioni più recenti (routing sicuro, ostacoli bloccanti evitati, Gemma 4). L'edizione cloud è uno snapshot separato, precedente, con backend Workers/D1 e accesso ChatGPT per inviare segnalazioni: le due architetture non sono state fuse. Per avviare il sito pubblico in locale, seguire `cloud/README.md`; i comandi qui sotto avviano l'app del team. Una modifica su GitHub non ripubblica automaticamente il sito.
 
 ## Avvio rapido
 
@@ -34,8 +34,9 @@ npm start                 # http://localhost:8787
 | `npm run dev` | Vite + API (`/api/*` montate come middleware) |
 | `npm run build` | type-check (`tsc -b`) + build frontend in `dist/` |
 | `npm start` | server Node: API + `dist/` |
-| `npm test` | test Vitest (93 test: normalizzazione OSM, analisi e confronto percorsi, routing sicuro, assistente AI/fallback, API) |
+| `npm test` | test Vitest (99 test: normalizzazione OSM, analisi e confronto percorsi, routing sicuro, assistente AI/fallback, API) |
 | `npm run typecheck` | solo type-check |
+| `npm run check:ai` | controllo dal vivo di Gemma su segnalazioni di esempio (categoria, bloccante, gravità, manipolazione, foto); facoltativo: percorso di una foto JPEG |
 | `npm run fetch:osm` | riscarica lo snapshot OSM da Overpass (una richiesta, con mirror di riserva) |
 
 Lint: non configurato (scelta per ridurre le dipendenze); il type-check è in modalità `strict`.
@@ -67,6 +68,7 @@ Lo stato dei servizi è visibile nella barra in alto (desktop) e in ogni risulta
   - *carreggiata senza marciapiede mappato*: strade residenziali/di servizio senza marciapiede noto → **non verificabile**;
   - *strada principale senza marciapiede* (terziaria o superiore) o **scale** (profilo sedia a rotelle) → alternativa **scartata**.
   Si sceglie l'alternativa con meno carreggiata, accettando al massimo 2 m di deviazione per ogni metro evitato, e l'interfaccia spiega perché. Se resta carreggiata: *"Non è stato possibile trovare un percorso sufficientemente verificabile. Controlla la mappa prima di proseguire."* con i tratti elencati e evidenziati (alone ambra tratteggiato). Se tutte le alternative vanno scartate, nessun itinerario viene proposto (errore esplicito). I divieti di accesso (`foot=no`, `access=no`, autostrade) sono applicati dal router (profilo pedonale di Valhalla), non da un controllo nostro. Ignorati: il primo/ultimo tratto < 20 m (collegamento del punto cliccato alla rete) e frammenti < 3 m (rumore dell'aggancio).
+- **Ostacoli bloccanti segnalati**: l'analisi propone se la segnalazione **blocca il passaggio** ("non riesco a passare") e chi segnala conferma o corregge (*No, blocca il passaggio* / *Sì, con difficoltà* / *Non lo so*). Le segnalazioni bloccanti non risolte vengono **escluse dal calcolo** (area di ~10 m attorno al punto, `exclude_polygons` di Valhalla, `avoid_polygons` di ORS): dopo l'invio il percorso mostrato viene ricalcolato e il pannello dice "Evita 1 ostacolo segnalato come bloccante". Se nessun percorso lo evita, si calcola senza escluderlo e lo si dichiara. Le altre segnalazioni compaiono sulla mappa con l'icona della loro categoria; quelle bloccanti con il segnaposto rosso e il simbolo di divieto. Una segnalazione non è mai considerata verificata: viene evitata per prudenza.
 - **Pannello del percorso essenziale**: (1) esito in una frase con icona ("3 punti di attenzione" / "Nessun ostacolo noto") e distanza/durata; (2) **"Lungo il percorso"**: un solo elenco numerato come sulla mappa con ostacoli noti, segnalazioni e tratti in strada senza marciapiede, ciascuno spiegato in parole semplici e con la distanza dalla partenza; (3) **"Più dettagli"** chiuso: tipo di strada, confronto con il percorso a piedi, difficoltà minori, fonti e limiti. Dopo il calcolo partenza e arrivo si riducono a una riga con *Modifica*, così l'esito resta visibile anche su smartphone.
 - **Confronto a piedi / sedia a rotelle**: lo stesso motore (Valhalla) calcola anche il percorso pedonale standard; tabella con distanza, ostacoli noti e possibili criticità di entrambi, ostacoli evitati e ostacoli presenti solo sul percorso per sedia a rotelle. Linea continua blu = sedia a rotelle, linea a puntini grigia = a piedi (disattivabile).
 - **Percorso**: partenza/destinazione da ricerca indirizzi (Nominatim, limitata a Pisa, 1 richiesta/s, nessun autocompletamento come da policy), click sulla mappa o posizione GPS.
@@ -130,7 +132,7 @@ Link con partenza e destinazione precompilate (`?from=lat,lng&to=lat,lng`, poi *
 - L'istanza pubblica FOSSGIS è gratuita ma a uso moderato, senza garanzie di disponibilità: per un servizio reale va ospitata in proprio (Valhalla e ORS sono open source).
 - L'integrazione ORS è coperta da test con risposte simulate ma **non è stata provata contro il servizio reale** (nessuna chiave disponibile); idem per Ollama. Gemma 4 via Google AI Studio è stata provata dal vivo (testo e foto, ~5 s per analisi); `gemma-4-31b-it` era sovraccarico (503) al momento della prova. Limiti del piano gratuito non documentati per Gemma.
 - **Routing sicuro**: dipende dalla mappatura OSM dei marciapiedi. Molte vie del centro non hanno `sidewalk` mappato: risultano "carreggiata senza marciapiede" anche se il marciapiede esiste (o, al contrario, un marciapiede mappato può essere stretto o occupato). La classificazione usa l'aggancio della geometria alla rete (`walk_or_snap`), che può sbagliare su tratti molto vicini. Le soglie (20 m, 3 m, 2 m di deviazione per metro, terziarie = strade principali) sono scelte per la demo. Con ORS si valuta un solo percorso (le alternative ORS non sono implementate).
-- Le segnalazioni non influenzano il calcolo del percorso, solo l'analisi e l'elenco degli ostacoli.
+- Solo le segnalazioni bloccanti modificano il calcolo del percorso (le altre compaiono nell'analisi e nell'elenco). Una segnalazione falsa o sbagliata può allungare un percorso finché un moderatore non la segna come risolta.
 - Persistenza su file JSON: adatta a un singolo server di demo, non a più istanze. Nessuna autenticazione utente né rate limiting.
 - La copertura considera anche la superficie delle carreggiate, che non descrive sempre il marciapiede.
 - La corrispondenza percorso ↔ ostacolo è geometrica (5 m per i nodi, sovrapposizione ≥ 15 m per le vie, 15 m per le segnalazioni): può includere elementi su un marciapiede parallelo molto vicino.

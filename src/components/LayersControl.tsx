@@ -6,8 +6,8 @@ const ITEMS: { key: keyof Layers; label: string; tone: string }[] = [
   { key: 'possible', label: 'Possibili difficoltà', tone: 'possible' },
   { key: 'reports', label: 'Segnalazioni utenti', tone: 'report' },
   { key: 'positive', label: 'Elementi utili', tone: 'positive' },
-  { key: 'info', label: 'Attraversamenti senza dati', tone: 'info' },
-  { key: 'places', label: 'Accessibilità dei luoghi', tone: 'place' },
+  { key: 'info', label: 'Attraversamenti senza informazioni', tone: 'info' },
+  { key: 'places', label: 'Negozi e luoghi accessibili', tone: 'place' },
 ];
 
 export function LayersControl({ layers, onChange, osmDate }: { layers: Layers; onChange: (l: Layers) => void; osmDate?: string }) {
@@ -15,7 +15,7 @@ export function LayersControl({ layers, onChange, osmDate }: { layers: Layers; o
   return (
     <div className="layers">
       <button type="button" className="btn btn--map" aria-expanded={open} aria-controls="layers-body" onClick={() => setOpen(!open)}>
-        Legenda e livelli
+        Cosa mostra la mappa
       </button>
       {open && (
         <div id="layers-body" className="layers__body">
@@ -30,9 +30,12 @@ export function LayersControl({ layers, onChange, osmDate }: { layers: Layers; o
             ))}
           </fieldset>
           <p className="layers__legend">
-            <span className="pin-mini" aria-hidden="true">?</span> non verificata · <span className="pin-mini pin-mini--ok" aria-hidden="true">✓</span> verificata/risolta
+            <span className="pin-mini" aria-hidden="true">?</span> da controllare · <span className="pin-mini pin-mini--ok" aria-hidden="true">✓</span> controllata sul posto
           </p>
-          <p className="layers__legend">Riquadro tratteggiato: area con dati OSM caricati{osmDate ? ` (${new Date(osmDate).toLocaleDateString('it-IT')})` : ''}.</p>
+          <p className="layers__legend">
+            <span className="pin-mini pin-mini--block" aria-hidden="true" /> segnaposto rosso: ostacolo che blocca il passaggio
+          </p>
+          <p className="layers__legend">Il riquadro tratteggiato è la zona coperta dai dati{osmDate ? `, aggiornati al ${new Date(osmDate).toLocaleDateString('it-IT')}` : ''}.</p>
         </div>
       )}
     </div>

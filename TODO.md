@@ -17,7 +17,10 @@ Stato al 24/10/2026. Per riprendere: `npm install && npm run dev`, poi `npm test
 - [x] Segnalazioni: validazione, anti doppio invio, stato iniziale `unverified`, persistenza JSON
 - [x] Assistente segnalazioni Gemma 4 (provato dal vivo): foto, domanda mirata, bozza lato server, fallback a regole dichiarato
 - [x] Stati verificata/risolta con codice moderatore
-- [x] 93 test Vitest, type-check, build, E2E manuale con Playwright (desktop 1440×900, mobile 390×844), nessun errore JS in console
+- [x] Segnalazioni bloccanti evitate nel routing (exclude_polygons), ricalcolo automatico dopo l'invio
+- [x] Testi in linguaggio semplice (glossario: scivolo, strada, arrivo, fondo)
+- [x] Unito il commit del collaboratore (`cloud/`, edizione pubblicata separata)
+- [x] 99 test Vitest + `npm run check:ai` (controllo dal vivo di Gemma), type-check, build, E2E manuale con Playwright (desktop 1440×900, mobile 390×844), nessun errore JS in console
 
 ## Da fare
 
@@ -27,11 +30,11 @@ Stato al 24/10/2026. Per riprendere: `npm install && npm run dev`, poi `npm test
 - [ ] Provare Gemma su 10–20 segnalazioni reali e misurare la qualità delle domande
 - [ ] Alternative ORS (`alternative_routes`) e verifica dei tratti anche con ORS
 - [ ] Verificare sul posto i 5 percorsi demo (README)
-- [ ] Usare le segnalazioni verificate per evitare tratti nel routing (ORS `options.avoid_polygons`)
 - [ ] Passare a Supabase/Postgres se servono più istanze o utenti reali
 - [ ] Clustering marker a zoom bassi (oggi ~370 marker DOM)
 - [ ] Integrare Wheelmap per l'accessibilità delle destinazioni; valutare dati PEBA
 - [ ] ESLint (non configurato)
+- [ ] Allineare l'edizione `cloud/` al codice principale (oggi è una copia precedente: senza routing sicuro né ostacoli bloccanti, modello `gemma-3-27b-it`)
 
 ## Decisioni tecniche
 

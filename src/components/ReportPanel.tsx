@@ -17,7 +17,16 @@ interface Props {
   status: ServerStatus | null;
   onCreated: (r: Report) => void;
   onShow: (r: Report) => void;
+  /** C'è un percorso calcolato: una segnalazione bloccante lo farà ricalcolare */
+  hasRoute: boolean;
+  onShowRoute: () => void;
 }
+
+const PASSABLE = [
+  { value: true, label: 'No, blocca il passaggio' },
+  { value: false, label: 'Sì, con difficoltà' },
+  { value: null, label: 'Non lo so' },
+] as const;
 
 /** Segnalazione in due tempi con un solo bottone che avanza: "Continua" fa leggere la descrizione, "Invia" la salva. */
 export function ReportPanel(p: Props) {
@@ -26,12 +35,15 @@ export function ReportPanel(p: Props) {
   const [category, setCategory] = useState<ReportCategory | ''>('');
   const [draft, setDraft] = useState<ReportDraft | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
+  // Si passa? Proposto dall'analisi, confermato o corretto da chi segnala.
+  const [blocking, setBlocking] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<'analyze' | 'send' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Report | null>(null);
+  // Deciso all'invio: subito dopo, il percorso viene ricalcolato e per un attimo non c'è.
+  const [rerouted, setRerouted] = useState(false);
   const tooShort = description.trim().length < 10;
-  const usesAi = p.status !== null && p.status.ai !== 'fallback';
-
+  
   // Cambiare testo o foto annulla la lettura: quella salvata deve corrispondere a ciò che si invia.
   const resetDraft = () => { setDraft(null); setAnswer(null); setCategory(''); };
   const setDescription = (v: string) => { setDescriptionRaw(v); if (draft) resetDraft(); };
@@ -44,7 +56,7 @@ export function ReportPanel(p: Props) {
     try {
       setPhoto(await toJpegDataUrl(file));
     } catch {
-      setError('Non riusciamo a leggere questa foto. Prova con un\'altra.');
+      setError('Non riusciamo ad aprire questa foto. Prova con un\'altra.');
     }
   }
 
@@ -56,7 +68,9 @@ export function ReportPanel(p: Props) {
     if (!draft) {
       setBusy('analyze');
       try {
-        setDraft(await api.draftReport({ description, ...(photo ? { photo } : {}) }));
+        const d = await api.draftReport({ description, ...(photo ? { photo } : {}) });
+        setDraft(d);
+        setBlocking(d.interpretation.blocking);
       } catch (ex) {
         setError((ex as Error).message);
       } finally { setBusy(null); }
@@ -66,11 +80,12 @@ export function ReportPanel(p: Props) {
     setBusy('send');
     try {
       const r = await api.createReport({
-        ...p.point, description, draftId: draft.draftId,
+        ...p.point, description, draftId: draft.draftId, blocking,
         ...(category ? { category } : {}),
         ...(answer ? { answer } : {}),
       });
       setCreated(r);
+      setRerouted(r.blocking === true && p.hasRoute);
       p.onCreated(r);
       p.setPoint(null);
       setDescriptionRaw(''); setPhotoRaw(null); resetDraft();
@@ -86,11 +101,19 @@ export function ReportPanel(p: Props) {
           <Icon name="check" size={22} />
           <div>
             <h2 id="done-title" className="verdict__title">Grazie, segnalazione inviata</h2>
-            <p className="verdict__text">Compare sulla mappa con il punto di domanda finché qualcuno non la controlla sul posto.</p>
+            <p className="verdict__text">
+              {created.blocking === true
+                ? (rerouted
+                  ? 'Blocca il passaggio: abbiamo ricalcolato il tuo percorso per evitarlo.'
+                  : 'Blocca il passaggio: da ora i percorsi calcolati lo eviteranno.')
+                : `È sulla mappa con il simbolo «${CATEGORY_LABEL[created.category]}».`}
+              {' '}Resta da controllare sul posto.
+            </p>
           </div>
         </div>
         <div className="row">
-          <button type="button" className="btn btn--primary" onClick={() => p.onShow(created)}>Vedi sulla mappa</button>
+          {rerouted && <button type="button" className="btn btn--primary" onClick={p.onShowRoute}>Vedi il nuovo percorso</button>}
+          <button type="button" className={`btn ${rerouted ? 'btn--ghost' : 'btn--primary'}`} onClick={() => p.onShow(created)}>Vedi sulla mappa</button>
           <button type="button" className="btn btn--ghost" onClick={() => setCreated(null)}>Nuova segnalazione</button>
         </div>
       </section>
@@ -98,7 +121,7 @@ export function ReportPanel(p: Props) {
   }
 
   const q = draft?.interpretation.question;
-  const cta = busy === 'analyze' ? (usesAi ? 'Gemma sta leggendo…' : 'Un momento…')
+  const cta = busy === 'analyze' ? 'Stiamo leggendo la segnalazione…'
     : busy === 'send' ? 'Invio…'
     : draft ? 'Invia segnalazione' : 'Continua';
 
@@ -118,10 +141,10 @@ export function ReportPanel(p: Props) {
             <div className="row">
               <button type="button" className={`btn btn--secondary btn--sm${p.pickMode === 'report' ? ' is-active' : ''}`}
                 aria-pressed={p.pickMode === 'report'} onClick={() => p.setPickMode(p.pickMode === 'report' ? null : 'report')}>
-                <Icon name="pin" /> {p.pickMode === 'report' ? 'Tocca la mappa…' : 'Scegli sulla mappa'}
+                <Icon name="pin" /> {p.pickMode === 'report' ? 'Tocca il punto sulla mappa…' : 'Scegli sulla mappa'}
               </button>
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => p.onLocate('report')} disabled={p.locating}>
-                <Icon name="locate" /> {p.locating ? 'Localizzo…' : 'La mia posizione'}
+                <Icon name="locate" /> {p.locating ? 'Cerco dove sei…' : 'La mia posizione'}
               </button>
             </div>
           )}
@@ -148,6 +171,7 @@ export function ReportPanel(p: Props) {
         {draft && (
           <div className="field" aria-live="polite">
             <h3 className="section-title">Abbiamo capito così</h3>
+            <p className="field__help">Se qualcosa non va, correggi il tipo o modifica la descrizione.</p>
             <Interpretation
               interpretation={draft.interpretation}
               category={
@@ -157,6 +181,16 @@ export function ReportPanel(p: Props) {
                 </select>
               }
             />
+            <fieldset className="question">
+              <legend className="question__text">Si riesce a passare con la sedia a rotelle?</legend>
+              <div className="row">
+                {PASSABLE.map((o) => (
+                  <button key={o.label} type="button" className={`btn btn--ghost btn--sm${blocking === o.value ? ' is-active' : ''}`}
+                    aria-pressed={blocking === o.value} onClick={() => setBlocking(o.value)}>{o.label}</button>
+                ))}
+              </div>
+              {blocking === true && <p className="field__help">I percorsi eviteranno questo punto.</p>}
+            </fieldset>
             {q && (
               <fieldset className="question">
                 <legend className="question__text">{q.text}</legend>

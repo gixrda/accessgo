@@ -20,8 +20,8 @@ export function aiProvider(env: Env): { kind: 'gemma-ollama' | 'gemma-google' | 
  */
 export async function interpret(description: string, env: Env, photo?: Photo): Promise<Interpretation> {
   const p = aiProvider(env);
-  const photoNote = photo ? ' La foto non è stata analizzata.' : '';
-  if (p.kind === 'fallback') return fallbackInterpret(description, `Servizio AI non configurato: classificazione automatica a parole chiave.${photoNote}`);
+  const photoNote = photo ? ' La foto non è stata letta.' : '';
+  if (p.kind === 'fallback') return fallbackInterpret(description, `L'intelligenza artificiale non è attiva.${photoNote}`);
   const call = (img?: Photo) => p.kind === 'gemma-ollama'
     ? callOllama(env.OLLAMA_URL!, p.model!, buildPrompt(description, Boolean(img)), img)
     : callGoogle(env.GEMINI_API_KEY!, p.model!, buildPrompt(description, Boolean(img)), img);
@@ -34,14 +34,14 @@ export async function interpret(description: string, env: Env, photo?: Photo): P
       if (!photo) throw e;
       // Se il modello rifiuta l'immagine, l'interpretazione del testo resta utile: riproviamo senza foto e lo diciamo.
       raw = await call();
-      note = 'La foto non è stata analizzata dal modello.';
+      note = "L'intelligenza artificiale non è riuscita a leggere la foto.";
     }
     const parsed = validateInterpretation(extractJson(raw));
     // Una nota sulla foto è accettata solo se il modello ha davvero ricevuto la foto.
     if (parsed) return { ...parsed, ...(photo && !note ? {} : { photo_note: null }), engine: 'gemma', model: p.model, ...(note ? { note } : {}) };
-    return fallbackInterpret(description, `Risposta AI non valida: classificazione automatica a parole chiave.${photoNote}`);
+    return fallbackInterpret(description, `L'intelligenza artificiale ha dato una risposta non utilizzabile.${photoNote}`);
   } catch {
-    return fallbackInterpret(description, `Servizio AI non disponibile: classificazione automatica a parole chiave.${photoNote}`);
+    return fallbackInterpret(description, `L'intelligenza artificiale non ha risposto.${photoNote}`);
   }
 }
 
@@ -59,6 +59,9 @@ Leggi la segnalazione${hasPhoto ? ' e osserva la foto allegata' : ''} e rispondi
   per una persona in sedia a rotelle, con "options": da 2 a 4 risposte brevi (max 30 caratteri). Formato:
   {"text": "...", "options": ["...", "..."]}. Non includere "Non so": viene aggiunto dall'app.
   Se "missing_info" non è vuoto, chiedi la più importante; usa null solo se non manca nulla di importante.
+- "blocking": true SOLO se il testo dice chiaramente che con la sedia a rotelle non si riesce a passare
+  (es. "non riesco a passare", "blocca completamente il passaggio"); false se descrive una difficoltà superabile;
+  null se non è chiaro.
 ${hasPhoto
     ? `- "photo_note": cosa mostra la foto rispetto all'ostacolo, in una frase (max 160 caratteri), solo ciò che è chiaramente visibile.
   Se la foto non mostra l'ostacolo descritto, dillo. Non identificare persone e non riportare targhe.`
@@ -82,7 +85,8 @@ async function callGoogle(key: string, model: string, prompt: string, photo?: Ph
       // Senza ragionamento esteso Gemma 4 risponde in ~5 s invece di ~20 s (misurato), con risposte equivalenti.
       generationConfig: { temperature: 0.1, ...(model.startsWith('gemma-4') ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}) },
     }),
-    signal: AbortSignal.timeout(30_000),
+    // Misurato sul piano gratuito: di solito 5-10 s, a volte oltre 20 s.
+    signal: AbortSignal.timeout(45_000),
   });
   let res = await request();
   // Il piano gratuito restituisce a volte errori temporanei (sovraccarico): un solo nuovo tentativo.
@@ -151,6 +155,7 @@ export function validateInterpretation(x: unknown): Omit<Interpretation, 'engine
       : [],
     question: validateQuestion(o.question),
     photo_note: str(o.photo_note, 200),
+    blocking: typeof o.blocking === 'boolean' ? o.blocking : null,
   };
 }
 
@@ -163,6 +168,9 @@ const RULES: [ReportCategory, RegExp][] = [
   ['uneven_surface', /\b(buc[ah]\w*|sconness\w*|dissestat\w*|irregolar\w*|sampietrin\w*|ciottol\w*|pav[eé]|radic\w*|ghiaia|crep\w*|rott\w*|sterrat\w*)/],
   ['slope', /\b(pendenz\w*|salit\w*|discesa|ripid\w*|rampa)/],
 ];
+
+// Frasi che dicono chiaramente che non si passa. In assenza di queste il fallback non decide (null).
+const BLOCKING_RE = /non (riesco|riusciamo|si riesce|posso|si può|puoi)( a)? (passare|entrare|attraversare)|non si passa|impossibile (passare|entrare)|blocca(no|to|ta)? (completamente|tutto|del tutto|l'intero)|impraticabile/;
 
 /** Classificazione deterministica a parole chiave. NON è AI: è marcata engine="fallback". */
 export function fallbackInterpret(description: string, note: string): Interpretation {
@@ -180,8 +188,8 @@ export function fallbackInterpret(description: string, note: string): Interpreta
   if (needsDuration) missing.push("Se l'ostacolo è temporaneo o permanente");
   if (!/(alternativ|aggir|altro lato|dall'altra parte)/.test(text)) missing.push('Se esiste un passaggio alternativo vicino');
   const question: FollowUpQuestion | null = needsHeight
-    ? { text: "Quanto è alto l'ostacolo, più o meno?", options: ['Meno di 3 cm', 'Tra 3 e 10 cm', 'Più di 10 cm'] }
-    : needsDuration ? { text: "L'ostacolo è temporaneo o permanente?", options: ['Temporaneo', 'Permanente'] } : null;
+    ? { text: "Quanto è alto, più o meno?", options: ['Meno di 3 cm', 'Tra 3 e 10 cm', 'Più di 10 cm'] }
+    : needsDuration ? { text: "C'è sempre o solo per un periodo?", options: ['Solo per un periodo', "C'è sempre"] } : null;
   const clean = description.trim().replace(/\s+/g, ' ');
   return {
     category, obstacle,
@@ -191,6 +199,7 @@ export function fallbackInterpret(description: string, note: string): Interpreta
     missing_info: missing,
     question,
     photo_note: null,
+    blocking: BLOCKING_RE.test(text) ? true : null,
     engine: 'fallback',
     note,
   };

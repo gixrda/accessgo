@@ -54,9 +54,11 @@ function featureIcon(f: OsmFeature, selected: boolean): L.DivIcon {
 
 function reportIcon(r: Report, selected: boolean): L.DivIcon {
   const badge = r.status === 'unverified' ? '?' : '✓';
-  const key = `report-${r.category}-${r.status}-${selected}`;
+  // Ostacolo che blocca il passaggio: segnaposto rosso con il simbolo di divieto; altrimenti l'icona della categoria.
+  const key = `report-${r.category}-${r.status}-${r.blocking}-${selected}`;
+  const icon: IconName = r.blocking ? 'block' : CATEGORY_ICON[r.category] as IconName;
   return divIcon(key,
-    `<span class="pin pin--${r.status}${selected ? ' is-selected' : ''}">${iconSvg(CATEGORY_ICON[r.category] as IconName, 16)}<b class="pin__badge">${badge}</b></span>`,
+    `<span class="pin pin--${r.status}${r.blocking ? ' pin--blocking' : ''}${selected ? ' is-selected' : ''}">${iconSvg(icon, 16)}<b class="pin__badge">${badge}</b></span>`,
     [34, 42], [17, 40]);
 }
 
@@ -173,8 +175,8 @@ export function MapView(p: Props) {
           key={r.id}
           position={[r.lat, r.lng]}
           icon={reportIcon(r, r.id === selId)}
-          title={`Segnalazione ${STATUS_LABEL[r.status].toLowerCase()}: ${CATEGORY_LABEL[r.category]}`}
-          alt={`Segnalazione ${STATUS_LABEL[r.status].toLowerCase()}: ${CATEGORY_LABEL[r.category]}`}
+          title={`${CATEGORY_LABEL[r.category]}${r.blocking ? ', non si passa' : ''} (${STATUS_LABEL[r.status].toLowerCase()})`}
+          alt={`${CATEGORY_LABEL[r.category]}${r.blocking ? ', non si passa' : ''} (${STATUS_LABEL[r.status].toLowerCase()})`}
           zIndexOffset={500}
           eventHandlers={clickHandler({ type: 'report', report: r })}
         />
@@ -193,7 +195,7 @@ export function MapView(p: Props) {
       ))}
       {p.reportPoint && <Marker position={[p.reportPoint.lat, p.reportPoint.lng]} icon={draftIcon} keyboard={false} zIndexOffset={900} title="Posizione della nuova segnalazione" />}
       {p.from && <Marker position={[p.from.lat, p.from.lng]} icon={endpointIcon('A')} keyboard={false} zIndexOffset={1000} title={`Partenza: ${p.from.label}`} />}
-      {p.to && <Marker position={[p.to.lat, p.to.lng]} icon={endpointIcon('B')} keyboard={false} zIndexOffset={1000} title={`Destinazione: ${p.to.label}`} />}
+      {p.to && <Marker position={[p.to.lat, p.to.lng]} icon={endpointIcon('B')} keyboard={false} zIndexOffset={1000} title={`Arrivo: ${p.to.label}`} />}
       {p.userPos && (
         <CircleMarker center={[p.userPos.lat, p.userPos.lng]} radius={8} interactive={false}
           pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#0B5CAD', fillOpacity: 1 }} />

@@ -109,6 +109,29 @@ describe('API senza credenziali', () => {
     expect((await post('/api/reports/draft', { description: 'Gradino alto davanti al bar', photo: big })).status).toBe(413);
   });
 
+  it('le segnalazioni bloccanti vengono evitate nel calcolo del percorso', async () => {
+    const blocked = await (await post('/api/reports', { ...PISA, description: 'Cantiere sul marciapiede: non riesco a passare' })).json();
+    expect(blocked).toMatchObject({ blocking: true, blockingSource: 'interpretation' });
+    // chi segnala può correggere la proposta dell'analisi
+    const minor = await (await post('/api/reports', { lat: PISA.lat + 0.001, lng: PISA.lng, description: 'Buca piccola, si passa con attenzione', blocking: false })).json();
+    expect(minor).toMatchObject({ blocking: false, blockingSource: 'user' });
+    // chi segnala può anche dichiararla bloccante quando l'analisi non lo capisce
+    const declared = await (await post('/api/reports', { lat: PISA.lat - 0.001, lng: PISA.lng, description: 'Transenne davanti al portone', blocking: true })).json();
+    expect(declared).toMatchObject({ blocking: true, blockingSource: 'user' });
+
+    const routeBodies: Record<string, unknown>[] = [];
+    mockExternal((url, init) => {
+      if (url.includes('valhalla') && url.endsWith('/route')) routeBodies.push(JSON.parse(init!.body as string));
+      return Response.json(OSRM_OK);
+    });
+    const r = await (await post('/api/route', { from: PISA, to: { lat: 43.719, lng: 10.404 } })).json();
+    expect(routeBodies[0].exclude_polygons).toHaveLength(2); // le due bloccanti, non quella superabile
+    expect(r.avoidedBlocking).toBe(2);
+    // il percorso a piedi di confronto non esclude nulla
+    await post('/api/route', { from: PISA, to: PISA, profile: 'foot' });
+    expect(routeBodies[1].exclude_polygons).toBeUndefined();
+  });
+
   it('blocca il doppio invio accidentale', async () => {
     const body = { ...PISA, description: 'Gradino alto davanti al bar' };
     expect((await post('/api/reports', body)).status).toBe(201);
@@ -137,7 +160,7 @@ describe('API senza credenziali', () => {
     mockExternal((url) => url.includes('valhalla') ? new Response('boom', { status: 500 }) : Response.json(OSRM_OK));
     const r = await (await post('/api/route', { from: PISA, to: PISA })).json();
     expect(r).toMatchObject({ mode: 'foot_fallback', provider: 'osrm-fossgis', durationS: null });
-    expect(r.notice).toMatch(/sedia a rotelle ha restituito un errore.*pedonale standard/);
+    expect(r.notice).toMatch(/sedia a rotelle ha avuto un problema.*normale percorso a piedi/);
   });
 
   it('calcola il percorso a piedi per il confronto con lo stesso motore, OSRM come riserva', async () => {
@@ -167,7 +190,7 @@ describe('API senza credenziali', () => {
     mockExternal(() => { throw new TypeError('fetch failed'); });
     const res = await post('/api/route', { from: PISA, to: PISA });
     expect(res.status).toBe(503);
-    expect((await res.json()).error).toMatch(/non raggiungibile/);
+    expect((await res.json()).error).toMatch(/Controlla la connessione/);
   });
 
   it('gestisce JSON malformato', async () => {
@@ -195,7 +218,7 @@ describe('API con credenziali', () => {
     mockExternal((url) => url.includes('openrouteservice') ? new Response('', { status: 401 }) : Response.json(OSRM_OK));
     const r = await (await post('/api/route', { from: PISA, to: PISA })).json();
     expect(r).toMatchObject({ mode: 'wheelchair', provider: 'valhalla' });
-    expect(r.notice).toMatch(/Chiave OpenRouteService non valida/);
+    expect(r.notice).toMatch(/OpenRouteService non è configurato correttamente/);
     expect(JSON.stringify(r)).not.toContain('ors"');
   });
 
@@ -207,7 +230,7 @@ describe('API con credenziali', () => {
     });
     const r = await (await post('/api/route', { from: PISA, to: PISA })).json();
     expect(r.mode).toBe('foot_fallback');
-    expect(r.notice).toMatch(/non raggiungibile.*pedonale standard/);
+    expect(r.notice).toMatch(/non risponde.*normale percorso a piedi/);
   });
 
   it('se ORS non trova un percorso per sedia a rotelle non lo sostituisce con uno pedonale', async () => {
@@ -215,6 +238,18 @@ describe('API con credenziali', () => {
     const res = await post('/api/route', { from: PISA, to: PISA });
     expect(res.status).toBe(404);
     expect((await res.json()).error).toMatch(/sedia a rotelle/);
+  });
+
+  it('una segnalazione bloccante risolta non viene più evitata', async () => {
+    const r = await (await post('/api/reports', { ...PISA, description: 'Cantiere sul marciapiede: non riesco a passare' })).json();
+    await call(`/api/reports/${r.id}`, { method: 'PATCH', body: '{"status":"resolved"}', headers: { 'x-admin-token': 'segreto' } });
+    const bodies: Record<string, unknown>[] = [];
+    mockExternal((url, init) => {
+      if (url.includes('valhalla') && url.endsWith('/route')) bodies.push(JSON.parse(init!.body as string));
+      return url.includes('openrouteservice') ? new Response('', { status: 503 }) : Response.json(OSRM_OK);
+    });
+    await post('/api/route', { from: PISA, to: PISA });
+    expect(bodies[0].exclude_polygons).toBeUndefined();
   });
 
   it('cambia lo stato solo con il codice moderatore corretto', async () => {

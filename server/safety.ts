@@ -126,7 +126,7 @@ export async function chooseSafest(candidates: RouteResult[], wheelchair: boolea
   const rejected = (s: RouteSafety) => s.segments.some((x) => x.kind === 'main_road' || (wheelchair && x.kind === 'steps'));
   const ok = checked.filter((a) => !rejected(a.safety));
   if (!ok.length) {
-    throw new HttpError(422, `${NOT_VERIFIABLE} Tutte le alternative trovate (${checked.length}) passano su strade principali senza marciapiede mappato${wheelchair ? ' o su scale' : ''}.`);
+    throw new HttpError(422, `${NOT_VERIFIABLE} Tutti i percorsi trovati passano da strade trafficate senza marciapiede${wheelchair ? ' o da scale' : ''}.`);
   }
   const minDist = Math.min(...ok.map((a) => a.route.distanceM));
   const score = (a: (typeof ok)[number]) => a.safety.carriagewayM + (a.route.distanceM - minDist) / DETOUR_PER_CARRIAGEWAY_M;

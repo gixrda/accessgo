@@ -56,6 +56,8 @@ export interface Interpretation {
   question: FollowUpQuestion | null;
   /** Cosa mostra la foto allegata, secondo il modello (null se nessuna foto analizzata) */
   photo_note: string | null;
+  /** true se il testo dice chiaramente che non si passa, false se è una difficoltà superabile, null se non è chiaro */
+  blocking: boolean | null;
   /** gemma = modello AI reale; fallback = regole a parole chiave (non AI) */
   engine: 'gemma' | 'fallback';
   model?: string;
@@ -76,6 +78,9 @@ export interface Report {
   source: 'user_report';
   interpretation: Interpretation;
   hasPhoto: boolean;
+  /** Blocca il passaggio? Deciso da chi segnala o proposto dall'analisi. I percorsi evitano le segnalazioni bloccanti. */
+  blocking: boolean | null;
+  blockingSource: 'user' | 'interpretation';
   /** Risposta di chi segnala alla domanda dell'assistente: dato fornito dall'utente, non dall'AI */
   followUp?: { question: string; answer: string };
 }
@@ -99,6 +104,10 @@ export interface RouteResult {
   notice?: string;
   /** Verifica dei tratti (pedonali, con marciapiede, in carreggiata); assente per il percorso di confronto */
   safety?: RouteSafety;
+  /** Segnalazioni bloccanti escluse dal calcolo (aree di ~10 m attorno al punto) */
+  avoidedBlocking?: number;
+  /** true se non esiste un percorso che eviti le segnalazioni bloccanti: è stato calcolato senza escluderle */
+  avoidFailed?: boolean;
 }
 
 export interface SafetySegment {

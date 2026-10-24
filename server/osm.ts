@@ -37,17 +37,19 @@ const BLOCKING_BARRIERS = new Set(['stile', 'turnstile', 'kissing_gate', 'full-h
 const PASSAGE_BARRIERS = new Set([
   'bollard', 'gate', 'lift_gate', 'block', 'cycle_barrier', 'chain', 'swing_gate', 'sliding_gate', 'kerb',
 ]);
+// Etichette in parole di tutti i giorni: le leggono anche persone che non conoscono i termini tecnici.
 const SURFACE_IT: Record<string, string> = {
-  sett: 'lastricato a blocchi', cobblestone: 'acciottolato', unhewn_cobblestone: 'acciottolato',
-  pebblestone: 'ghiaia/ciottoli', gravel: 'ghiaia', dirt: 'sterrato', grass: 'erba', sand: 'sabbia',
-  ground: 'terra', mud: 'fango', earth: 'terra', woodchips: 'trucioli', rock: 'roccia',
-  stepping_stones: 'pietre a passo',
+  sett: 'Lastricato in pietra', cobblestone: 'Acciottolato', unhewn_cobblestone: 'Acciottolato',
+  pebblestone: 'Ciottoli', gravel: 'Ghiaia', dirt: 'Sterrato', grass: 'Prato', sand: 'Sabbia',
+  ground: 'Terra battuta', mud: 'Fango', earth: 'Terra battuta', woodchips: 'Trucioli di legno', rock: 'Roccia',
+  stepping_stones: 'Pietre a passo',
 };
 const BARRIER_IT: Record<string, string> = {
-  bollard: 'dissuasore', gate: 'cancello', lift_gate: 'sbarra', block: 'blocco', cycle_barrier: 'barriera anti-bici',
-  chain: 'catena', swing_gate: 'cancello', sliding_gate: 'cancello scorrevole', stile: 'scaletta',
-  turnstile: 'tornello', kissing_gate: 'cancelletto a labirinto', 'full-height_turnstile': 'tornello',
+  bollard: 'Paletti in mezzo al passaggio', gate: 'Cancello', lift_gate: 'Sbarra', block: 'Blocchi in mezzo al passaggio',
+  cycle_barrier: 'Barriera anti-bici', chain: 'Catena', swing_gate: 'Cancello', sliding_gate: 'Cancello scorrevole',
+  stile: 'Scaletta', turnstile: 'Tornello', kissing_gate: 'Cancelletto a zig-zag', 'full-height_turnstile': 'Tornello',
 };
+const cm = (m: number) => `${Math.round(m * 100)} cm`;
 
 /** Pendenza in % se numerica ("8%", "-5%"), null se non numerica ("up", "down", "yes"). */
 function inclinePercent(v: string): number | null {
@@ -69,47 +71,47 @@ export function classifyPath(t: Record<string, string>): Classified | null {
     const ramp = t['ramp:wheelchair'] === 'yes';
     const n = t.step_count ? ` (${t.step_count} gradini)` : '';
     return ramp
-      ? { kind: 'steps', certainty: 'possible_issue', label: `Scale con rampa per sedia a rotelle mappata${n}` }
+      ? { kind: 'steps', certainty: 'possible_issue', label: `Scale con rampa${n}` }
       : { kind: 'steps', certainty: 'known_obstacle', label: `Scale${n}` };
   }
-  if (t.wheelchair === 'no') return { kind: 'wheelchair', certainty: 'known_obstacle', label: 'Indicato come non percorribile in sedia a rotelle' };
-  if (t.smoothness === 'impassable') return { kind: 'smoothness', certainty: 'known_obstacle', label: 'Superficie indicata come impraticabile' };
-  if (t.barrier && BLOCKING_BARRIERS.has(t.barrier)) return { kind: 'barrier', certainty: 'known_obstacle', label: `Barriera: ${BARRIER_IT[t.barrier]}` };
+  if (t.wheelchair === 'no') return { kind: 'wheelchair', certainty: 'known_obstacle', label: 'Passaggio non adatto alla sedia a rotelle' };
+  if (t.smoothness === 'impassable') return { kind: 'smoothness', certainty: 'known_obstacle', label: 'Fondo impraticabile' };
+  if (t.barrier && BLOCKING_BARRIERS.has(t.barrier)) return { kind: 'barrier', certainty: 'known_obstacle', label: BARRIER_IT[t.barrier] };
 
   const kerbHeight = t['kerb:height'] ? Number.parseFloat(t['kerb:height']) : NaN;
-  if (t.kerb === 'raised' || kerbHeight > 0.03) return { kind: 'kerb', certainty: 'known_obstacle', label: 'Cordolo rialzato' };
+  if (t.kerb === 'raised' || kerbHeight > 0.03) return { kind: 'kerb', certainty: 'known_obstacle', label: 'Marciapiede senza scivolo' };
 
   const width = t.width ? widthMeters(t.width) : null;
-  if (width !== null && width < 0.9) return { kind: 'width', certainty: 'known_obstacle', label: `Passaggio stretto (${width} m)` };
+  if (width !== null && width < 0.9) return { kind: 'width', certainty: 'known_obstacle', label: `Passaggio molto stretto (${cm(width)})` };
 
-  if (t.kerb === 'rolled') return { kind: 'kerb', certainty: 'possible_issue', label: 'Cordolo smussato' };
+  if (t.kerb === 'rolled') return { kind: 'kerb', certainty: 'possible_issue', label: 'Gradino del marciapiede smussato' };
   if (t.barrier && PASSAGE_BARRIERS.has(t.barrier) && !t.kerb) {
     return t.barrier === 'kerb'
-      ? { kind: 'kerb', certainty: 'possible_issue', label: 'Cordolo (altezza non mappata)' }
-      : { kind: 'barrier', certainty: 'possible_issue', label: `Barriera: ${BARRIER_IT[t.barrier]}` };
+      ? { kind: 'kerb', certainty: 'possible_issue', label: 'Gradino del marciapiede (altezza sconosciuta)' }
+      : { kind: 'barrier', certainty: 'possible_issue', label: BARRIER_IT[t.barrier] };
   }
   if (t.incline) {
     const p = inclinePercent(t.incline);
-    if (p === null && t.incline !== '0') return { kind: 'incline', certainty: 'possible_issue', label: 'Pendenza (valore non mappato)' };
-    if (p !== null && p > 6) return { kind: 'incline', certainty: 'possible_issue', label: `Pendenza ${p}%` };
+    if (p === null && t.incline !== '0') return { kind: 'incline', certainty: 'possible_issue', label: 'Salita o discesa (pendenza sconosciuta)' };
+    if (p !== null && p > 6) return { kind: 'incline', certainty: 'possible_issue', label: `Salita o discesa ripida (${p}%)` };
   }
-  if (t.smoothness && BAD_SMOOTHNESS.has(t.smoothness)) return { kind: 'smoothness', certainty: 'possible_issue', label: 'Superficie irregolare' };
-  if (t.surface && ROUGH_SURFACES.has(t.surface)) return { kind: 'surface', certainty: 'possible_issue', label: `Superficie: ${SURFACE_IT[t.surface]}` };
-  if (width !== null && width < 1.2) return { kind: 'width', certainty: 'possible_issue', label: `Passaggio stretto (${width} m)` };
-  if (t.wheelchair === 'limited') return { kind: 'wheelchair', certainty: 'possible_issue', label: 'Accessibilità parziale in sedia a rotelle' };
+  if (t.smoothness && BAD_SMOOTHNESS.has(t.smoothness)) return { kind: 'smoothness', certainty: 'possible_issue', label: 'Fondo irregolare' };
+  if (t.surface && ROUGH_SURFACES.has(t.surface)) return { kind: 'surface', certainty: 'possible_issue', label: SURFACE_IT[t.surface] };
+  if (width !== null && width < 1.2) return { kind: 'width', certainty: 'possible_issue', label: `Passaggio stretto (${cm(width)})` };
+  if (t.wheelchair === 'limited') return { kind: 'wheelchair', certainty: 'possible_issue', label: 'Adatto solo in parte alla sedia a rotelle' };
 
-  if (t.kerb === 'lowered' || t.kerb === 'flush' || t.kerb === 'no') return { kind: 'kerb', certainty: 'positive_info', label: 'Cordolo ribassato o a raso' };
-  if (t.wheelchair === 'yes' || t.wheelchair === 'designated') return { kind: 'wheelchair', certainty: 'positive_info', label: 'Indicato come percorribile in sedia a rotelle' };
+  if (t.kerb === 'lowered' || t.kerb === 'flush' || t.kerb === 'no') return { kind: 'kerb', certainty: 'positive_info', label: 'Scivolo del marciapiede' };
+  if (t.wheelchair === 'yes' || t.wheelchair === 'designated') return { kind: 'wheelchair', certainty: 'positive_info', label: 'Adatto alla sedia a rotelle' };
 
-  if (t.highway === 'crossing') return { kind: 'crossing', certainty: 'info', label: 'Attraversamento (cordolo non mappato)' };
-  if (t.surface || t.smoothness || t.incline || t.width) return { kind: 'surface', certainty: 'info', label: 'Dati sulla superficie disponibili' };
+  if (t.highway === 'crossing') return { kind: 'crossing', certainty: 'info', label: 'Attraversamento: scivolo non indicato' };
+  if (t.surface || t.smoothness || t.incline || t.width) return { kind: 'surface', certainty: 'info', label: 'Tratto con informazioni sul fondo' };
   return null;
 }
 
 function classifyPlace(t: Record<string, string>): Classified | null {
-  if (t.wheelchair === 'no') return { kind: 'wheelchair', certainty: 'known_obstacle', label: 'Luogo indicato come non accessibile' };
-  if (t.wheelchair === 'limited') return { kind: 'wheelchair', certainty: 'possible_issue', label: 'Luogo parzialmente accessibile' };
-  if (t.wheelchair === 'yes' || t.wheelchair === 'designated') return { kind: 'wheelchair', certainty: 'positive_info', label: 'Luogo indicato come accessibile' };
+  if (t.wheelchair === 'no') return { kind: 'wheelchair', certainty: 'known_obstacle', label: 'Luogo non accessibile in sedia a rotelle' };
+  if (t.wheelchair === 'limited') return { kind: 'wheelchair', certainty: 'possible_issue', label: 'Luogo accessibile solo in parte' };
+  if (t.wheelchair === 'yes' || t.wheelchair === 'designated') return { kind: 'wheelchair', certainty: 'positive_info', label: 'Luogo accessibile in sedia a rotelle' };
   return null;
 }
 

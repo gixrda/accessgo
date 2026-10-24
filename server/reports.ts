@@ -24,8 +24,8 @@ function parseDescription(description: unknown): string {
 function parsePhoto(photo: unknown): Photo | undefined {
   if (photo === undefined || photo === null || photo === '') return undefined;
   const m = typeof photo === 'string' ? /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo) : null;
-  if (!m) throw new HttpError(400, 'Formato della foto non valido.');
-  if (m[1].length * 0.75 > MAX_PHOTO_BYTES) throw new HttpError(413, 'Foto troppo grande.');
+  if (!m) throw new HttpError(400, "Questa foto non si può usare. Prova con un'altra.");
+  if (m[1].length * 0.75 > MAX_PHOTO_BYTES) throw new HttpError(413, "La foto è troppo grande. Prova con un'altra.");
   return { mime: 'image/jpeg', base64: m[1] };
 }
 
@@ -73,8 +73,8 @@ export function createReportStore(file: string) {
   }
 
   async function create(input: unknown, env: Env): Promise<Report> {
-    const { lat, lng, description, category, draftId, answer } = (input ?? {}) as Record<string, unknown>;
-    if (!inPisa(lat, lng)) throw new HttpError(400, 'Posizione non valida: seleziona un punto sulla mappa di Pisa.');
+    const { lat, lng, description, category, draftId, answer, blocking } = (input ?? {}) as Record<string, unknown>;
+    if (!inPisa(lat, lng)) throw new HttpError(400, 'Il punto scelto non è a Pisa. Scegli il punto sulla mappa.');
     const text = parseDescription(description);
     if (category !== undefined && category !== null && category !== '' && !REPORT_CATEGORIES.includes(category as ReportCategory)) {
       throw new HttpError(400, 'Categoria non valida.');
@@ -83,7 +83,7 @@ export function createReportStore(file: string) {
     // Protezione da doppio invio: stesso testo, stesso punto, meno di 2 minuti fa.
     const dup = reports.find((r) => r.description === text && Math.abs(r.lat - (lat as number)) < 5e-5
       && Math.abs(r.lng - (lng as number)) < 5e-5 && Date.now() - Date.parse(r.createdAt) < 120_000);
-    if (dup) throw new HttpError(409, 'Questa segnalazione è appena stata inviata.');
+    if (dup) throw new HttpError(409, 'Hai appena inviato questa segnalazione: non serve inviarla di nuovo.');
 
     const draft = typeof draftId === 'string' ? drafts.get(draftId) : undefined;
     const fromDraft = draft && draft.expires >= Date.now() && draft.description === text ? draft : undefined;
@@ -92,11 +92,12 @@ export function createReportStore(file: string) {
     let followUp: Report['followUp'];
     if (answer !== undefined && answer !== null && answer !== '') {
       const q = interpretation.question;
-      if (!q || typeof answer !== 'string' || ![...q.options, NOT_SURE].includes(answer)) throw new HttpError(400, 'Risposta non valida.');
+      if (!q || typeof answer !== 'string' || ![...q.options, NOT_SURE].includes(answer)) throw new HttpError(400, 'La risposta scelta non è valida. Scegline una tra quelle proposte.');
       followUp = { question: q.text, answer };
     }
 
     const userCategory = category ? category as ReportCategory : null;
+    const userBlocking = blocking === true || blocking === false || blocking === null;
     const report: Report = {
       id: randomUUID(),
       lat: lat as number,
@@ -109,6 +110,9 @@ export function createReportStore(file: string) {
       source: 'user_report',
       interpretation,
       hasPhoto: Boolean(fromDraft?.photo),
+      // La risposta di chi segnala ("si riesce a passare?") prevale sulla proposta dell'analisi.
+      blocking: userBlocking ? blocking as boolean | null : interpretation.blocking,
+      blockingSource: userBlocking ? 'user' : 'interpretation',
       ...(followUp ? { followUp } : {}),
     };
     if (fromDraft?.photo) {

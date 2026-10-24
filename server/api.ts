@@ -20,7 +20,7 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
 
   async function geocode(q: string): Promise<GeocodeResult[]> {
     const key = q.trim().toLowerCase();
-    if (key.length < 3) throw new HttpError(400, 'Scrivi almeno 3 caratteri.');
+    if (key.length < 3) throw new HttpError(400, 'Scrivi almeno 3 lettere per cercare.');
     const hit = geocodeCache.get(key);
     if (hit) return hit;
     // Policy Nominatim: massimo 1 richiesta al secondo, User-Agent identificativo, niente autocompletamento.
@@ -32,8 +32,8 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
       q, format: 'jsonv2', limit: '5', viewbox: `${w},${n},${e},${s}`, bounded: '1', 'accept-language': 'it',
     })}`;
     const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(10_000) })
-      .catch(() => { throw new HttpError(503, 'Ricerca indirizzi non disponibile. Seleziona il punto sulla mappa.'); });
-    if (!res.ok) throw new HttpError(503, 'Ricerca indirizzi non disponibile. Seleziona il punto sulla mappa.');
+      .catch(() => { throw new HttpError(503, 'La ricerca degli indirizzi non funziona in questo momento. Scegli il punto sulla mappa.'); });
+    if (!res.ok) throw new HttpError(503, 'La ricerca degli indirizzi non funziona in questo momento. Scegli il punto sulla mappa.');
     const json = await res.json() as { display_name: string; lat: string; lon: string }[];
     const results = json.map((r) => ({ label: r.display_name, lat: Number(r.lat), lng: Number(r.lon) }));
     geocodeCache.set(key, results);
@@ -83,18 +83,27 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
           from?: { lat?: unknown; lng?: unknown }; to?: { lat?: unknown; lng?: unknown }; profile?: unknown;
         };
         if (!from || !to || !inPisa(from.lat, from.lng) || !inPisa(to.lat, to.lng)) {
-          throw new HttpError(400, 'Partenza e destinazione devono trovarsi a Pisa.');
+          throw new HttpError(400, "Partenza e arrivo devono essere a Pisa.");
         }
         if (profile !== 'wheelchair' && profile !== 'foot') throw new HttpError(400, 'Profilo di percorso non valido.');
         const [a, b] = [from as { lat: number; lng: number }, to as { lat: number; lng: number }];
-        return send(res, 200, profile === 'foot' ? await getFootRoute(a, b) : await getRoute(a, b, env));
+        if (profile === 'foot') return send(res, 200, await getFootRoute(a, b));
+        // Segnalazioni bloccanti non risolte nella zona del percorso (riquadro partenza-arrivo allargato di ~1 km).
+        const pad = 0.01;
+        const [s, n] = [Math.min(a.lat, b.lat) - pad, Math.max(a.lat, b.lat) + pad];
+        const [w, e] = [Math.min(a.lng, b.lng) - pad, Math.max(a.lng, b.lng) + pad];
+        const avoid = (await reports.all())
+          .filter((r) => r.blocking === true && r.status !== 'resolved' && r.lat >= s && r.lat <= n && r.lng >= w && r.lng <= e)
+          .slice(-20)
+          .map((r) => ({ lat: r.lat, lng: r.lng }));
+        return send(res, 200, await getRoute(a, b, env, avoid));
       }
       if (method === 'GET' && path === '/api/geocode') return send(res, 200, await geocode(url.searchParams.get('q') ?? ''));
       throw new HttpError(404, 'Risorsa non trovata.');
     } catch (e) {
       if (e instanceof HttpError) return send(res, e.status, { error: e.message });
       console.error(e);
-      return send(res, 500, { error: 'Errore interno. Riprova.' });
+      return send(res, 500, { error: 'Qualcosa non ha funzionato. Riprova tra poco.' });
     }
   };
 }

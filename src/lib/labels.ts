@@ -2,17 +2,17 @@ import type { Certainty, FeatureKind, ReportCategory, Severity, VerificationStat
 
 export const CATEGORY_LABEL: Record<ReportCategory, string> = {
   steps: 'Scale o gradini',
-  kerb: 'Cordolo non superabile',
-  obstructed_sidewalk: 'Marciapiede ostruito',
-  uneven_surface: 'Superficie irregolare',
-  slope: 'Pendenza problematica',
-  crossing: 'Attraversamento difficoltoso',
+  kerb: 'Gradino del marciapiede',
+  obstructed_sidewalk: 'Marciapiede bloccato',
+  uneven_surface: 'Fondo rovinato o irregolare',
+  slope: 'Salita o discesa ripida',
+  crossing: 'Attraversamento difficile',
   other: 'Altro ostacolo',
 };
 
 export const STATUS_LABEL: Record<VerificationStatus, string> = {
-  unverified: 'Non verificata',
-  verified: 'Verificata',
+  unverified: 'Da controllare',
+  verified: 'Controllata sul posto',
   resolved: 'Risolta',
 };
 

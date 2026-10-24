@@ -14,13 +14,13 @@ type Tab = 'route' | 'report';
 
 const PICK_PROMPT: Record<Exclude<PickMode, null>, string> = {
   from: 'Tocca la mappa per scegliere la partenza',
-  to: 'Tocca la mappa per scegliere la destinazione',
+  to: "Tocca la mappa per scegliere l'arrivo",
   report: "Tocca il punto esatto dell'ostacolo",
 };
 
-function placeFromUrl(key: string, label: string): Place | null {
+function placeFromUrl(key: string): Place | null {
   const [lat, lng] = (new URLSearchParams(window.location.search).get(key) ?? '').split(',').map(Number);
-  return inPisa(lat, lng) ? { lat, lng, label: `${label} (${lat.toFixed(4)}, ${lng.toFixed(4)})` } : null;
+  return inPisa(lat, lng) ? { lat, lng, label: 'Punto indicato nel link' } : null;
 }
 
 export default function App() {
@@ -36,9 +36,9 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<Focus>(null);
 
-  // ?from=lat,lng&to=lat,lng precompila partenza e destinazione (link ripetibili per la demo).
-  const [from, setFrom] = useState<Place | null>(() => placeFromUrl('from', 'Partenza dal link'));
-  const [to, setTo] = useState<Place | null>(() => placeFromUrl('to', 'Destinazione dal link'));
+  // ?from=lat,lng&to=lat,lng precompila partenza e arrivo (link ripetibili per la demo).
+  const [from, setFrom] = useState<Place | null>(() => placeFromUrl('from'));
+  const [to, setTo] = useState<Place | null>(() => placeFromUrl('to'));
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [footRoute, setFootRoute] = useState<RouteResult | null>(null);
   const [showFoot, setShowFoot] = useState(true);
@@ -52,8 +52,8 @@ export default function App() {
   useEffect(() => {
     // Ogni sorgente fallisce in modo indipendente: la mappa resta utilizzabile anche senza dati OSM o segnalazioni.
     api.status().then(setStatus).catch(() => setStatus(null));
-    api.osm().then(setOsm).catch(() => setLoadError('Dati OpenStreetMap non disponibili: ostacoli noti non mostrati.'));
-    api.reports().then(setReports).catch(() => setLoadError('Segnalazioni non disponibili al momento.'));
+    api.osm().then(setOsm).catch(() => setLoadError('Non riusciamo a caricare gli ostacoli conosciuti: la mappa funziona, ma non li vedrai. Ricarica la pagina tra poco.'));
+    api.reports().then(setReports).catch(() => setLoadError('Non riusciamo a caricare le segnalazioni degli utenti. Ricarica la pagina tra poco.'));
   }, []);
 
   const features = useMemo(() => osm?.features ?? [], [osm]);
@@ -70,7 +70,7 @@ export default function App() {
   const changeTo = (p: Place | null) => { setTo(p); setRoute(null); setFootRoute(null); setRouteError(null); };
 
   function onPick(p: { lat: number; lng: number }) {
-    const label = `Punto sulla mappa (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`;
+    const label = 'Punto scelto sulla mappa';
     if (pickMode === 'from') changeFrom({ ...p, label });
     if (pickMode === 'to') changeTo({ ...p, label });
     if (pickMode === 'report') setReportPoint(p);
@@ -80,13 +80,13 @@ export default function App() {
   }
 
   function locate(target: 'from' | 'report') {
-    if (!('geolocation' in navigator)) { setGeoError('Geolocalizzazione non supportata da questo browser.'); return; }
+    if (!('geolocation' in navigator)) { setGeoError('Questo browser non può dirci dove sei. Scegli il punto sulla mappa.'); return; }
     setLocating(true); setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         setLocating(false);
         const p = { lat: coords.latitude, lng: coords.longitude };
-        if (!inPisa(p.lat, p.lng)) { setGeoError('Sei fuori dall\'area di Pisa coperta da AccessGo: scegli il punto sulla mappa.'); return; }
+        if (!inPisa(p.lat, p.lng)) { setGeoError('Sembri fuori da Pisa: per ora AccessGo funziona solo qui. Scegli il punto sulla mappa.'); return; }
         setUserPos(p);
         setFocus({ coords: [[p.lat, p.lng]], nonce: Date.now() });
         if (target === 'from') changeFrom({ ...p, label: 'La mia posizione' });
@@ -95,8 +95,8 @@ export default function App() {
       (err) => {
         setLocating(false);
         setGeoError(err.code === err.PERMISSION_DENIED
-          ? 'Permesso di geolocalizzazione negato. Seleziona il punto sulla mappa.'
-          : 'Posizione non disponibile. Seleziona il punto sulla mappa.');
+          ? 'Non possiamo vedere dove sei perché il permesso è stato negato. Scegli il punto sulla mappa.'
+          : 'Non riusciamo a trovare la tua posizione. Scegli il punto sulla mappa.');
       },
       { enableHighAccuracy: true, timeout: 10_000 },
     );
@@ -129,6 +129,12 @@ export default function App() {
     if (selection?.type === 'report' && selection.report.id === r.id) setSelection({ type: 'report', report: r });
   }
 
+  function onReportCreated(r: Report) {
+    upsertReport(r);
+    // Un ostacolo che blocca il passaggio fa ricalcolare subito il percorso mostrato, che lo eviterà.
+    if (r.blocking === true && route && from && to) void calculate();
+  }
+
   function startReport() {
     setTab('report'); setSelection(null); setSheetOpen(true);
     if (!reportPoint) setPickMode('report');
@@ -146,13 +152,13 @@ export default function App() {
         </div>
         <ul className="services" aria-label="Stato dei servizi">
           <li className="chip chip--ok">
-            Routing sedia a rotelle: {status?.routing === 'openrouteservice' ? 'OpenRouteService' : 'Valhalla'}
+            Percorsi per sedia a rotelle
           </li>
           <li className={`chip ${status && status.ai !== 'fallback' ? 'chip--ok' : 'chip--warn'}`}>
-            Interpretazione: {status && status.ai !== 'fallback' ? 'Gemma' : 'regole (fallback)'}
+            {status && status.ai !== 'fallback' ? 'Intelligenza artificiale attiva' : 'Intelligenza artificiale non attiva'}
           </li>
         </ul>
-        <button type="button" className="btn btn--accent topbar__cta" onClick={startReport}>+ Segnala ostacolo</button>
+        <button type="button" className="btn btn--accent topbar__cta" onClick={startReport}>+ Segnala un ostacolo</button>
       </header>
 
       <main className="main">
@@ -181,7 +187,8 @@ export default function App() {
             ) : (
               <ReportPanel point={reportPoint} setPoint={setReportPoint} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} status={status}
-                onCreated={upsertReport} onShow={(r) => select({ type: 'report', report: r })} />
+                onCreated={onReportCreated} onShow={(r) => select({ type: 'report', report: r })}
+                hasRoute={route !== null} onShowRoute={() => { setTab('route'); setSelection(null); }} />
             )}
           </div>
         </aside>
