@@ -134,8 +134,8 @@ export default function App() {
           </div>
         </div>
         <ul className="services" aria-label="Stato dei servizi">
-          <li className={`chip ${status?.routing === 'openrouteservice' ? 'chip--ok' : 'chip--warn'}`}>
-            Routing: {status?.routing === 'openrouteservice' ? 'sedia a rotelle' : 'pedonale (fallback)'}
+          <li className="chip chip--ok">
+            Routing sedia a rotelle: {status?.routing === 'openrouteservice' ? 'OpenRouteService' : 'Valhalla'}
           </li>
           <li className={`chip ${status && status.ai !== 'fallback' ? 'chip--ok' : 'chip--warn'}`}>
             Interpretazione: {status && status.ai !== 'fallback' ? 'Gemma' : 'regole (fallback)'}

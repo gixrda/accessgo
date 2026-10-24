@@ -133,12 +133,14 @@ function RouteSummary({ route, analysis, onSelect }: { route: RouteResult; analy
     <div className="summary" aria-live="polite">
       {route.mode === 'wheelchair' ? (
         <div className="notice notice--info">
-          <strong>Profilo sedia a rotelle</strong> — calcolato da OpenRouteService sui dati OpenStreetMap.
+          <strong>Profilo sedia a rotelle</strong> — calcolato da {route.provider === 'openrouteservice' ? 'OpenRouteService' : 'Valhalla (FOSSGIS)'} sui dati OpenStreetMap.
+          {route.provider === 'valhalla' && " Evita scale e fondi sterrati quando esiste un'alternativa, ma non conosce l'altezza dei cordoli: controlla gli attraversamenti qui sotto."}
+          {route.notice && <> <br />{route.notice}</>}
         </div>
       ) : (
         <div className="notice notice--warn" role="note">
           <strong>Percorso pedonale standard, non calcolato per sedia a rotelle.</strong>{' '}
-          {route.notice ?? 'Il routing per sedia a rotelle richiede una chiave OpenRouteService non configurata.'}{' '}
+          {route.notice}{' '}
           Le criticità qui sotto sono comunque confrontate con i dati disponibili.
         </div>
       )}

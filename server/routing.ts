@@ -3,21 +3,30 @@ import { HttpError, USER_AGENT, type Env } from './errors.ts';
 
 type Point = { lat: number; lng: number };
 
+const NO_WHEELCHAIR_ROUTE = 'Nessun percorso per sedia a rotelle trovato tra questi punti con i dati disponibili.';
+
 /**
- * Con ORS_API_KEY usa il profilo OpenRouteService "wheelchair".
- * Senza chiave, o se ORS non risponde, usa il router pedonale OSRM di FOSSGIS: il risultato è marcato
- * mode="foot_fallback" e l'interfaccia lo dichiara come NON valutato per sedia a rotelle.
+ * Routing per sedia a rotelle, tutto gratuito:
+ * 1. OpenRouteService "wheelchair" se c'è ORS_API_KEY (chiave gratuita; considera anche i cordoli);
+ * 2. Valhalla "pedestrian/wheelchair" sull'istanza pubblica FOSSGIS (senza chiave);
+ * 3. solo se nessuno dei due risponde: percorso pedonale OSRM, marcato mode="foot_fallback" e dichiarato nell'interfaccia.
  */
 export async function getRoute(from: Point, to: Point, env: Env): Promise<RouteResult> {
-  if (!env.ORS_API_KEY) return osrmFoot(from, to);
-  try {
-    return await orsWheelchair(from, to, env.ORS_API_KEY);
-  } catch (e) {
-    // "Nessun percorso per sedia a rotelle" è un risultato, non un guasto: non lo sostituiamo con un percorso pedonale.
-    if (e instanceof HttpError && e.status === 404) throw e;
-    const reason = e instanceof HttpError ? e.message : 'OpenRouteService non raggiungibile.';
-    return { ...(await osrmFoot(from, to)), notice: `${reason} Mostrato un percorso pedonale standard.` };
+  const routers = env.ORS_API_KEY
+    ? [() => orsWheelchair(from, to, env.ORS_API_KEY!), () => valhallaWheelchair(from, to)]
+    : [() => valhallaWheelchair(from, to)];
+  let reason = '';
+  for (const route of routers) {
+    try {
+      const r = await route();
+      return reason ? { ...r, notice: reason } : r;
+    } catch (e) {
+      // "Nessun percorso per sedia a rotelle" è un risultato, non un guasto: non lo sostituiamo con un altro percorso.
+      if (e instanceof HttpError && e.status === 404) throw e;
+      reason = e instanceof HttpError ? e.message : 'Servizio di routing per sedia a rotelle non raggiungibile.';
+    }
   }
+  return { ...(await osrmFoot(from, to)), notice: `${reason} Mostrato un percorso pedonale standard.` };
 }
 
 async function orsWheelchair(from: Point, to: Point, key: string): Promise<RouteResult> {
@@ -29,16 +38,14 @@ async function orsWheelchair(from: Point, to: Point, key: string): Promise<Route
   });
   if (res.status === 401 || res.status === 403) throw new HttpError(502, 'Chiave OpenRouteService non valida.');
   if (res.status === 429) throw new HttpError(503, 'Limite di richieste OpenRouteService raggiunto.');
-  if (res.status === 404 || res.status === 400) {
-    // 2009 = percorso non trovato, 2010 = punto non collegato alla rete percorribile
-    throw new HttpError(404, 'Nessun percorso per sedia a rotelle trovato tra questi punti con i dati disponibili.');
-  }
+  // 2009 = percorso non trovato, 2010 = punto non collegato alla rete percorribile
+  if (res.status === 404 || res.status === 400) throw new HttpError(404, NO_WHEELCHAIR_ROUTE);
   if (!res.ok) throw new HttpError(502, 'OpenRouteService ha restituito un errore.');
   const json = await res.json() as {
     features?: { geometry: { coordinates: [number, number][] }; properties: { summary: { distance?: number; duration?: number } } }[];
   };
   const f = json.features?.[0];
-  if (!f) throw new HttpError(404, 'Nessun percorso per sedia a rotelle trovato.');
+  if (!f) throw new HttpError(404, NO_WHEELCHAIR_ROUTE);
   return {
     mode: 'wheelchair', provider: 'openrouteservice',
     coords: f.geometry.coordinates.map(([lng, lat]): LatLngTuple => [lat, lng]),
@@ -47,14 +54,42 @@ async function orsWheelchair(from: Point, to: Point, key: string): Promise<Route
   };
 }
 
+type OsrmResponse = { code: string; routes?: { distance: number; duration: number; geometry: { coordinates: [number, number][] } }[] };
+
+async function valhallaWheelchair(from: Point, to: Point): Promise<RouteResult> {
+  const res = await fetch('https://valhalla1.openstreetmap.de/route', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
+    body: JSON.stringify({
+      locations: [{ lat: from.lat, lon: from.lng }, { lat: to.lat, lon: to.lng }],
+      costing: 'pedestrian',
+      // type=wheelchair: 4 km/h e solo fondi compatti o migliori. Valhalla penalizza le scale senza escluderle:
+      // con la penalità massima ammessa (12 h) le usa solo se non esiste alternativa, e l'analisi le segnala.
+      costing_options: { pedestrian: { type: 'wheelchair', step_penalty: 43_200 } },
+      format: 'osrm',
+      shape_format: 'geojson',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => { throw new HttpError(503, 'Servizio di routing per sedia a rotelle non raggiungibile.'); });
+  if (res.status === 429) throw new HttpError(503, 'Troppe richieste al servizio di routing per sedia a rotelle.');
+  const json = await res.json().catch(() => null) as OsrmResponse | null;
+  if (json?.code === 'NoRoute') throw new HttpError(404, NO_WHEELCHAIR_ROUTE);
+  const r = json?.code === 'Ok' ? json.routes?.[0] : undefined;
+  if (!res.ok || !r) throw new HttpError(502, 'Il servizio di routing per sedia a rotelle ha restituito un errore.');
+  return {
+    mode: 'wheelchair', provider: 'valhalla',
+    coords: r.geometry.coordinates.map(([lng, lat]): LatLngTuple => [lat, lng]),
+    distanceM: r.distance,
+    durationS: r.duration,
+  };
+}
+
 async function osrmFoot(from: Point, to: Point): Promise<RouteResult> {
   const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(15_000) })
     .catch(() => { throw new HttpError(503, 'Servizio di routing non raggiungibile. Controlla la connessione e riprova.'); });
   if (res.status === 429) throw new HttpError(503, 'Troppe richieste al servizio di routing. Riprova tra poco.');
-  const json = await res.json().catch(() => null) as
-    | { code: string; routes?: { distance: number; geometry: { coordinates: [number, number][] } }[] }
-    | null;
+  const json = await res.json().catch(() => null) as OsrmResponse | null;
   if (!json) throw new HttpError(502, 'Il servizio di routing ha restituito un errore.');
   if (json.code !== 'Ok' || !json.routes?.[0]) throw new HttpError(404, 'Nessun percorso trovato tra questi punti.');
   const r = json.routes[0];

@@ -72,18 +72,18 @@ export interface Report {
 }
 
 export interface RouteResult {
-  /** wheelchair = profilo ORS per sedia a rotelle; foot_fallback = percorso pedonale standard, NON valutato */
+  /** wheelchair = profilo per sedia a rotelle (ORS o Valhalla); foot_fallback = percorso pedonale standard, NON valutato */
   mode: 'wheelchair' | 'foot_fallback';
-  provider: 'openrouteservice' | 'osrm-fossgis';
+  provider: 'openrouteservice' | 'valhalla' | 'osrm-fossgis';
   coords: LatLngTuple[];
   distanceM: number;
   durationS: number | null;
-  /** Motivo del fallback, se ORS era configurato ma non ha risposto */
+  /** Motivo del ripiego, se il servizio preferito non ha risposto */
   notice?: string;
 }
 
 export interface ServerStatus {
-  routing: 'openrouteservice' | 'fallback';
+  routing: 'openrouteservice' | 'valhalla';
   ai: 'gemma-google' | 'gemma-ollama' | 'fallback';
   aiModel?: string;
   admin: boolean;

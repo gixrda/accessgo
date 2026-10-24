@@ -49,7 +49,7 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
       if (method === 'GET' && path === '/api/status') {
         const ai = aiProvider(env);
         const status: ServerStatus = {
-          routing: env.ORS_API_KEY ? 'openrouteservice' : 'fallback',
+          routing: env.ORS_API_KEY ? 'openrouteservice' : 'valhalla',
           ai: ai.kind, ...(ai.model ? { aiModel: ai.model } : {}),
           admin: Boolean(env.ADMIN_TOKEN),
         };
