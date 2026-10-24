@@ -196,7 +196,7 @@ describe('report draft across actual App navigation', () => {
     await renderApp();
     switchTab('Segnala');
     expect(screen.getByText('Interpretazione: stato non disponibile')).toBeTruthy();
-    expect(screen.getByText(/Stato del servizio non disponibile: il metodo usato sarà indicato dopo l’invio/)).toBeTruthy();
+    expect(screen.getByText(/Il metodo usato sarà indicato nel risultato/)).toBeTruthy();
     expect(screen.queryByText(/Gemma/)).toBeNull();
   });
 

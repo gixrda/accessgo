@@ -144,7 +144,8 @@ export async function generateGemma({ env, systemInstruction, userText }: {
       let response: Response;
       try {
         response = await bounded(fetch(url, {
-          method: 'POST', redirect: 'error',
+          // Workers supports manual/follow only. Refuse 3xx below instead of forwarding the API key.
+          method: 'POST', redirect: 'manual',
           headers: { 'Content-Type': 'application/json', ...(google ? { 'x-goog-api-key': env.GEMINI_API_KEY!.trim() } : {}) },
           body: JSON.stringify(body), signal: controller.signal,
         }), controller.signal);

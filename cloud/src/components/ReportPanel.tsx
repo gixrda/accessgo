@@ -1,5 +1,6 @@
 import { REPORT_CATEGORIES, type Report, type ReportCategory, type ServerStatus } from '../../shared/types.ts';
 import type { ReportDraft } from '../hooks/useReportDraft.ts';
+import { useReportAnalysis } from '../hooks/useReportAnalysis.ts';
 import { PanelActions } from './PanelActions.tsx';
 import { CATEGORY_LABEL } from '../lib/labels.ts';
 import { Icon } from './Icon.tsx';
@@ -20,6 +21,7 @@ interface Props {
 
 export function ReportPanel(p: Props) {
   const { point, description, setDescription, category, setCategory, submitting, error, created } = p.draft;
+  const analysis = useReportAnalysis(description);
   const tooShort = description.trim().length < 10;
   const requiresSignIn = Boolean(p.status?.reportRequiresSignIn && !p.status.reportSignedIn);
 
@@ -30,7 +32,7 @@ export function ReportPanel(p: Props) {
           <h2 id="done-title" className="notice__title">Segnalazione inviata</h2>
           È visibile sulla mappa come <strong>non verificata</strong> finché qualcuno non la conferma sul posto.
         </div>
-        <Interpretation report={created} />
+        <Interpretation interpretation={created.interpretation} category={created.category} categorySource={created.categorySource} />
         <div className="row">
           <button type="button" className="btn btn--primary" onClick={() => p.onShow(created)}>Vedi sulla mappa</button>
           <button type="button" className="btn btn--ghost" onClick={p.draft.startNew}>Nuova segnalazione</button>
@@ -40,7 +42,7 @@ export function ReportPanel(p: Props) {
   }
 
   const aiLabel = !p.status
-    ? 'Stato del servizio non disponibile: il metodo usato sarà indicato dopo l’invio.'
+    ? 'Il metodo usato sarà indicato nel risultato.'
     : p.status.ai === 'fallback'
     ? 'La descrizione sarà classificata con regole a parole chiave (AI non configurata).'
     : `La descrizione sarà interpretata da Gemma${p.status?.aiModel ? ` (${p.status.aiModel})` : ''}.`;
@@ -53,10 +55,11 @@ export function ReportPanel(p: Props) {
       </p>}
       <form id="report-form" className="report-form" onSubmit={(event) => {
         event.preventDefault();
-        if (p.status && !requiresSignIn) void p.draft.submit();
+        if (p.status && !requiresSignIn && !analysis.isPending()) void p.draft.submit();
       }} noValidate>
         <fieldset className="field">
           <legend className="field__label"><span className="step">1</span> Posizione esatta</legend>
+          <p className="field__help">Necessaria solo per pubblicare sulla mappa.</p>
           {point ? (
             <div className="place">
               <span className="place__text">Punto selezionato · {point.lat.toFixed(5)}, {point.lng.toFixed(5)}</span>
@@ -77,10 +80,38 @@ export function ReportPanel(p: Props) {
 
         <div className="field">
           <label htmlFor="desc" className="field__label"><span className="step">2</span> Cosa hai trovato?</label>
-          <textarea disabled={submitting} id="desc" rows={4} maxLength={1000} value={description} onChange={(e) => setDescription(e.target.value)}
+          <textarea disabled={submitting} id="desc" rows={4} maxLength={1000} value={description}
+            onFocus={() => p.setPickMode(null)} onChange={(e) => { analysis.reset(); setDescription(e.target.value); }}
             placeholder="Es. C'è un gradino alto davanti all'ingresso e non si passa con la sedia a rotelle."
             aria-describedby="desc-help" aria-invalid={error !== null && tooShort} />
-          <p id="desc-help" className="field__help">{aiLabel} Il testo originale viene sempre conservato. <span className="muted">{description.length}/1000</span></p>
+          <p id="desc-help" className="field__help">{aiLabel} <span className="muted">{description.length}/1000</span></p>
+        </div>
+
+        <div className="report-analysis">
+          <button type="button" className="btn btn--secondary btn--block"
+            disabled={tooShort || submitting || analysis.analysing} aria-describedby="analysis-help"
+            onClick={() => {
+              p.setPickMode(null);
+              const active = document.activeElement;
+              if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) active.blur();
+              void analysis.analyze();
+            }}>
+            {analysis.analysing ? 'Analisi in corso…' : 'Analizza senza pubblicare'}
+          </button>
+          <p id="analysis-help" className="field__help">
+            Prova anche senza account o posizione. AccessGo non salva né pubblica questa analisi.
+            {' '}Se disponibile, il testo viene inviato al servizio AI.
+          </p>
+          {tooShort && <p className="field__help">Scrivi almeno 10 caratteri per analizzare.</p>}
+          <div aria-live="polite" aria-busy={analysis.analysing}>
+            {analysis.analysing && <p className="msg" role="status">Analisi del testo in corso. Attendi qualche secondo…</p>}
+            {analysis.error && <p className="msg msg--error" role="alert">{analysis.error}</p>}
+            {analysis.interpretation && <section className="report-analysis__preview" aria-labelledby="analysis-title">
+              <h3 id="analysis-title" className="notice__title">Anteprima · non pubblicata</h3>
+              <p className="field__help">Nessun punto aggiunto alla mappa. L'interpretazione non è una verifica sul posto.</p>
+              <Interpretation interpretation={analysis.interpretation} />
+            </section>}
+          </div>
         </div>
 
         <div className="field">
@@ -95,10 +126,13 @@ export function ReportPanel(p: Props) {
       </form>
       <PanelActions target={p.actionsTarget}>
         {requiresSignIn ? <>
-          <a className="btn btn--accent btn--block" href="/signin-with-chatgpt?return_to=%2F" target="_top"
-            onClick={() => { saveReportDraftForSignIn({ point, description, category }); }}>Accedi per inviare</a>
+          <a className="btn btn--accent btn--block" href="/signin-with-chatgpt?return_to=%2F" target="_top" aria-disabled={analysis.analysing}
+            onClick={(event) => {
+              if (analysis.isPending()) { event.preventDefault(); return; }
+              saveReportDraftForSignIn({ point, description, category });
+            }}>Accedi per inviare</a>
           <p className="field__help">La bozza rimane in questa scheda se il browser consente il salvataggio locale.</p>
-        </> : <button type="submit" form="report-form" className="btn btn--accent btn--block" disabled={submitting || !point || tooShort || !p.status}>
+        </> : <button type="submit" form="report-form" className="btn btn--accent btn--block" disabled={submitting || analysis.analysing || !point || tooShort || !p.status}>
           {submitting ? 'Invio e interpretazione…' : 'Invia segnalazione'}
         </button>}
         {!p.status && <p className="field__help">Accesso al servizio non disponibile. Ricarica la pagina per riprovare.</p>}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VERIFICATION_STATUSES, type OsmFeature, type Report, type ServerStatus, type VerificationStatus } from '../../shared/types.ts';
+import { VERIFICATION_STATUSES, type Interpretation as InterpretationData, type OsmFeature, type Report, type ReportCategory, type ServerStatus, type VerificationStatus } from '../../shared/types.ts';
 import { api } from '../api.ts';
 import { CATEGORY_LABEL, CERTAINTY_HINT, CERTAINTY_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import type { Selection } from './MapView.tsx';
@@ -14,8 +14,9 @@ const TAG_LABEL: Record<string, string> = {
 
 const dateFmt = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
 
-export function Interpretation({ report }: { report: Report }) {
-  const i = report.interpretation;
+export function Interpretation({ interpretation: i, category = i.category, categorySource = 'interpretation' }: {
+  interpretation: InterpretationData; category?: ReportCategory; categorySource?: Report['categorySource'];
+}) {
   return (
     <div className="interp">
       <p className="interp__engine">
@@ -25,7 +26,7 @@ export function Interpretation({ report }: { report: Report }) {
       </p>
       <dl className="kv">
         <dt>Categoria</dt>
-        <dd>{CATEGORY_LABEL[report.category]} <span className="muted">({report.categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span></dd>
+        <dd>{CATEGORY_LABEL[category]} <span className="muted">({categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span></dd>
         {i.obstacle && <><dt>Ostacolo</dt><dd>{i.obstacle}</dd></>}
         <dt>Sintesi</dt><dd>{i.summary}</dd>
         <dt>Gravità</dt><dd>{SEVERITY_LABEL[i.severity]}</dd>
@@ -63,7 +64,7 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
       )}
       <p className="interp__sub">Descrizione originale</p>
       <blockquote className="quote">{report.description}</blockquote>
-      <Interpretation report={report} />
+      <Interpretation interpretation={report.interpretation} category={report.category} categorySource={report.categorySource} />
       <dl className="kv">
         <dt>Inviata</dt><dd>{dateFmt.format(new Date(report.createdAt))}</dd>
         {report.statusUpdatedAt && <><dt>Stato aggiornato</dt><dd>{dateFmt.format(new Date(report.statusUpdatedAt))}</dd></>}
