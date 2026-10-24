@@ -159,6 +159,46 @@ describe('useRoutePlanner request lifecycle', () => {
 });
 
 describe('ordered stops', () => {
+  it('atomically replaces a previous itinerary and calculates confirmed voice points in the same event', async () => {
+    vi.mocked(api.route).mockResolvedValue(mainRoute);
+    const { result } = setup();
+    act(() => result.current.addVia());
+    const oldId = result.current.via[0].id;
+    await act(async () => {
+      expect(result.current.replaceItinerary({ from: destination, to: otherDestination, via: [origin] })).toBe(true);
+      await result.current.calculate();
+    });
+    expect(vi.mocked(api.route).mock.calls[0].slice(0, 3)).toEqual([destination, otherDestination, 'wheelchair']);
+    expect(vi.mocked(api.route).mock.calls[0][4]).toEqual([origin]);
+    expect(result.current.from).toEqual(destination);
+    expect(result.current.to).toEqual(otherDestination);
+    expect(result.current.via).toHaveLength(1);
+    expect(result.current.via[0].id).not.toBe(oldId);
+  });
+
+  it('rejects invalid confirmed voice points without partially changing the previous endpoints', () => {
+    const { result } = setup();
+    act(() => {
+      expect(result.current.replaceItinerary({ from: origin, to: { ...destination, lat: 48 }, via: [] })).toBe(false);
+    });
+    expect(result.current.from).toEqual(origin);
+    expect(result.current.to).toEqual(destination);
+    expect(result.current.routeError).toMatch(/Pisa/);
+    expect(api.route).not.toHaveBeenCalled();
+  });
+
+  it('clears old intermediate stops when a voice plan has only a destination', async () => {
+    vi.mocked(api.route).mockResolvedValue(mainRoute);
+    const { result } = setup();
+    act(() => result.current.addVia());
+    await act(async () => {
+      expect(result.current.replaceItinerary({ from: origin, to: destination, via: [] })).toBe(true);
+      await result.current.calculate();
+    });
+    expect(result.current.via).toEqual([]);
+    expect(vi.mocked(api.route).mock.calls[0][4]).toEqual([]);
+  });
+
   it('never calculates while an added stop is empty, and passes all completed stops in order', async () => {
     vi.mocked(api.route).mockResolvedValue(mainRoute);
     const { result } = setup();

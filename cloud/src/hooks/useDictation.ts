@@ -5,6 +5,7 @@ type Phase = 'idle' | 'requesting' | 'recording' | 'stopping' | 'ready' | 'trans
 type Configuration = 'checking' | 'ready' | 'missing' | 'failed';
 interface Capture {
   source: string | undefined;
+  language: 'it' | 'auto';
   stream?: MediaStream;
   recorder?: MediaRecorder;
   chunks: Blob[];
@@ -30,16 +31,17 @@ function releaseMicrophone(capture: Capture) {
 }
 
 /** Local bounded recording followed by an explicit ElevenLabs transcription request. */
-export function useDictation({ onTranscript, value, disabled = false, maxLength = 1000 }: {
+export function useDictation({ onTranscript, value, disabled = false, maxLength = 1000, language = 'it', onRecordingStart }: {
   onTranscript: (text: string) => void; value?: string; disabled?: boolean; maxLength?: number;
+  language?: 'it' | 'auto'; onRecordingStart?: () => void;
 }) {
   const [supported, setSupported] = useState(false);
   const [configuration, setConfiguration] = useState<Configuration>('checking');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const capture = useRef<Capture | null>(null);
-  const latest = useRef({ onTranscript, value, disabled, maxLength });
-  latest.current = { onTranscript, value, disabled, maxLength };
+  const latest = useRef({ onTranscript, value, disabled, maxLength, language, onRecordingStart });
+  latest.current = { onTranscript, value, disabled, maxLength, language, onRecordingStart };
 
   const discard = useCallback(() => {
     const current = capture.current;
@@ -65,7 +67,7 @@ export function useDictation({ onTranscript, value, disabled = false, maxLength 
     }).catch(() => { if (live) setConfiguration('failed'); });
     return () => { live = false; };
   }, []);
-  useEffect(() => { cancel(); }, [value, disabled, cancel]);
+  useEffect(() => { cancel(); }, [value, disabled, language, cancel]);
   useEffect(() => {
     const hidden = () => { if (document.hidden) cancel(); };
     document.addEventListener('visibilitychange', hidden);
@@ -78,7 +80,7 @@ export function useDictation({ onTranscript, value, disabled = false, maxLength 
   }, [discard, cancel]);
 
   const isCurrent = (current: Capture) => capture.current === current
-    && !latest.current.disabled && latest.current.value === current.source;
+    && !latest.current.disabled && latest.current.value === current.source && latest.current.language === current.language;
 
   async function upload(current: Capture) {
     if (!isCurrent(current) || current.controller) return;
@@ -89,7 +91,7 @@ export function useDictation({ onTranscript, value, disabled = false, maxLength 
     current.controller = new AbortController();
     setPhase('transcribing');
     try {
-      const text = (await transcribeAudio(audio, current.controller.signal)).trim();
+      const text = (await transcribeAudio(audio, current.controller.signal, current.language)).trim();
       if (!isCurrent(current)) return;
       cancel();
       if (!text) { setError('Non sono state rilevate parole. Riprova o scrivi il testo.'); return; }
@@ -120,11 +122,12 @@ export function useDictation({ onTranscript, value, disabled = false, maxLength 
   async function start() {
     if (!recordingAvailable() || configuration !== 'ready' || latest.current.disabled || capture.current) return;
     activeDictation?.cancel();
-    const current: Capture = { source: latest.current.value, chunks: [], bytes: 0, uploadOnStop: false };
+    const current: Capture = { source: latest.current.value, language: latest.current.language, chunks: [], bytes: 0, uploadOnStop: false };
     capture.current = current;
     activeDictation = { capture: current, cancel };
     setPhase('requesting'); setError(null);
     try {
+      latest.current.onRecordingStart?.();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (!isCurrent(current)) { stream.getTracks().forEach((track) => track.stop()); return; }
       current.stream = stream;

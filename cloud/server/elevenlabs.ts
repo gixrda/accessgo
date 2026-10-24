@@ -93,7 +93,7 @@ const TYPES: Record<string, { extension: string; matches: (bytes: Uint8Array) =>
 };
 
 /** Bounded multipart parsing; URLs and arbitrary additional provider options are never accepted. */
-export async function readAudioUpload(request: Request): Promise<File> {
+async function parseAudioUpload(request: Request): Promise<{ file: File; language: 'it' | 'auto' }> {
   const contentType = request.headers.get('content-type') ?? '';
   if (!/^multipart\/form-data\s*;/i.test(contentType)) throw new HttpError(415, 'Invia una registrazione audio in formato multipart.');
   const limit = MAX_AUDIO_BYTES + 8192;
@@ -103,10 +103,15 @@ export async function readAudioUpload(request: Request): Promise<File> {
   try { form = await new Response(bytes as BodyInit, { headers: { 'Content-Type': contentType } }).formData(); }
   catch { throw new HttpError(400, 'Registrazione audio non valida.'); }
   const entries = [...form.entries()];
-  if (entries.length !== 1 || entries[0][0] !== 'audio' || !(entries[0][1] instanceof File)) {
-    throw new HttpError(400, 'Invia un solo file audio; indirizzi web e altri campi non sono accettati.');
+  const files = form.getAll('audio');
+  const languages = form.getAll('language');
+  if (entries.length < 1 || entries.length > 2 || files.length !== 1 || !(files[0] instanceof File)
+    || languages.length > 1 || entries.some(([key]) => key !== 'audio' && key !== 'language')) {
+    throw new HttpError(400, 'Invia un solo file audio e, se necessario, la modalità lingua; altri campi non sono accettati.');
   }
-  const file = entries[0][1];
+  const language = languages.length ? languages[0] : 'it';
+  if (language !== 'it' && language !== 'auto') throw new HttpError(400, 'Modalità lingua non valida: usa it oppure auto.');
+  const file = files[0];
   if (!file.size) throw new HttpError(400, 'La registrazione è vuota.');
   if (file.size > MAX_AUDIO_BYTES) throw new HttpError(413, 'Audio troppo grande: massimo 2 MB.');
   const type = file.type.split(';')[0].trim().toLowerCase();
@@ -114,8 +119,11 @@ export async function readAudioUpload(request: Request): Promise<File> {
   const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   if (!format || !format.matches(head)) throw new HttpError(415, 'Formato audio non supportato o file non valido. Registra di nuovo.');
   // Do not forward arbitrary user filenames or metadata to the speech provider.
-  return new File([file], `recording.${format.extension}`, { type });
+  return { file: new File([file], `recording.${format.extension}`, { type }), language };
 }
+
+/** Retained for callers that only need the validated recording. */
+export async function readAudioUpload(request: Request): Promise<File> { return (await parseAudioUpload(request)).file; }
 
 export function speechText(input: unknown): string {
   const text = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>).text : undefined;
@@ -164,13 +172,15 @@ async function providerCall<T>(url: string, init: RequestInit, decode: (response
 }
 
 export async function transcribeAudio(request: Request, env: Env, db?: D1Database) {
-  const file = await readAudioUpload(request);
+  const { file, language } = await parseAudioUpload(request);
   const config = configuration(env);
   await reserveVoiceSlot(db, 'stt');
   const form = new FormData();
   form.set('file', file);
   form.set('model_id', ELEVENLABS_STT_MODEL);
-  form.set('language_code', 'ita');
+  // ElevenLabs predicts the spoken language when language_code is omitted.
+  // Existing report/place recording keeps its Italian hint unless explicitly set to auto.
+  if (language === 'it') form.set('language_code', 'ita');
   form.set('tag_audio_events', 'false');
   form.set('diarize', 'false');
   form.set('timestamps_granularity', 'none');

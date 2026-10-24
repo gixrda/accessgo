@@ -14,9 +14,10 @@ let database: ReturnType<typeof testDatabase>;
 beforeEach(() => { database = testDatabase(); });
 afterEach(() => { database.sqlite.close(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 const limits = () => database.sqlite.prepare('SELECT * FROM provider_limits ORDER BY key').all();
-function recording(bytes = webm, type = 'audio/webm;codecs=opus') {
+function recording(bytes = webm, type = 'audio/webm;codecs=opus', language?: string | File) {
   const form = new FormData();
   form.set('audio', new File([bytes], 'private-original-name.webm', { type }));
+  if (language !== undefined) form.set('language', language);
   return new Request(`${base}/api/voice/transcribe`, { method: 'POST', headers: { Origin: base }, body: form });
 }
 function speech(body: unknown = { text: 'Tra venti metri gira a destra.' }) {
@@ -59,6 +60,19 @@ describe('voice input boundaries', () => {
     await expect(readAudioUpload(speech())).rejects.toMatchObject({ status: 415 });
   });
 
+  it('rejects unsupported, oversized, duplicate, or file-valued language modes before quota and provider calls', async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    for (const language of ['en', 'zh', '', 'AUTO', ' auto', 'auto ', 'auto'.repeat(2000), new File(['auto'], 'language.txt')]) {
+      await expect(transcribeAudio(recording(webm, 'audio/webm', language), env, database.db)).rejects.toMatchObject({ status: 400 });
+    }
+    const form = new FormData();
+    form.append('audio', new File([webm], 'recording.webm', { type: 'audio/webm' }));
+    form.append('language', 'auto'); form.append('language', 'it');
+    await expect(transcribeAudio(new Request(`${base}/api/voice/transcribe`, { method: 'POST', body: form }), env, database.db)).rejects.toMatchObject({ status: 400 });
+    expect(limits()).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('requires 1–500 raw characters for speech and does not accept arbitrary provider options', () => {
     expect(speechText({ text: '  Vai dritto.  ', voice_id: 'client-override' })).toBe('Vai dritto.');
     for (const input of [null, [], {}, { text: 1 }, { text: '   ' }, { text: 'a'.repeat(501) }]) {
@@ -81,6 +95,24 @@ describe('bounded provider requests', () => {
     expect(Object.fromEntries([...form.entries()].filter(([key]) => key !== 'file'))).toEqual({ model_id: 'scribe_v2', language_code: 'ita', tag_audio_events: 'false', diarize: 'false', timestamps_granularity: 'none' });
     expect(form.get('file')).toMatchObject({ name: 'recording.webm', type: 'audio/webm' });
     expect(JSON.stringify(limits())).not.toContain('gradino');
+  });
+
+  it.each(['it', 'auto'] as const)('supports explicit %s language mode without forwarding arbitrary multipart options', async (language) => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ text: '从火车站去比萨斜塔。', language_code: 'zho' }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await transcribeAudio(recording(webm, 'audio/webm', language), env, database.db)).toEqual({
+      text: '从火车站去比萨斜塔。', provider: 'elevenlabs', model: 'scribe_v2',
+    });
+    const form = fetchMock.mock.calls[0][1].body as FormData;
+    expect(form.get('language_code')).toBe(language === 'it' ? 'ita' : null);
+    expect(form.get('language')).toBeNull();
+    expect(form.get('model_id')).toBe('scribe_v2');
+    expect(form.get('file')).toMatchObject({ name: 'recording.webm', type: 'audio/webm' });
+    expect(Object.keys(Object.fromEntries(form.entries())).sort()).toEqual(
+      (language === 'it' ? ['file', 'model_id', 'language_code', 'tag_audio_events', 'diarize', 'timestamps_granularity']
+        : ['file', 'model_id', 'tag_audio_events', 'diarize', 'timestamps_granularity']).sort(),
+    );
+    expect(JSON.stringify(limits())).not.toContain('火车站');
   });
 
   it('generates actual binary speech with the fixed provider URL, selected model and Italian language', async () => {

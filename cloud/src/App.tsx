@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { inPisa, type OsmDataset, type Report, type ServerStatus } from '../shared/types.ts';
+import { type OsmDataset, type Report, type ServerStatus } from '../shared/types.ts';
 import { api } from './api.ts';
 import { DetailPanel } from './components/DetailPanel.tsx';
 import { LayersControl } from './components/LayersControl.tsx';
 import { MapView, type Focus, type Layers, type PickMode, type Selection } from './components/MapView.tsx';
 import { ReportPanel } from './components/ReportPanel.tsx';
 import { RoutePanel } from './components/RoutePanel.tsx';
+import { MapSearchBar } from './components/MapSearchBar.tsx';
+import { locateForPlanning, type PlanningLocation } from './lib/location.ts';
 import { analyzeRoute } from './lib/analysis.ts';
 import { clipLineToRoute, selectionIsOutsideRoute, type MapScope } from './lib/mapScope.ts';
 import { useRoutePlanner } from './hooks/useRoutePlanner.ts';
@@ -30,7 +32,10 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [tab, setTab] = useState<Tab>(() => readReportSignInDraft() ? 'report' : 'route');
-  const [sheetMode, setSheetMode] = useState<SheetMode>('half');
+  const [sheetMode, setSheetMode] = useState<SheetMode>(() => typeof window !== 'undefined' && window.matchMedia(MOBILE_LAYOUT).matches ? 'peek' : 'half');
+  const [voiceRequest, setVoiceRequest] = useState<{ id: number; text: string } | undefined>();
+  const voiceRequestSequence = useRef(0);
+  const [voiceResetKey, setVoiceResetKey] = useState(0);
   const [actionsTarget, setActionsTarget] = useState<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const mobile = useMobileLayout();
@@ -43,7 +48,7 @@ export default function App() {
   const activeView = useRef({ tab, pickMode, selection });
   activeView.current = { tab, pickMode, selection };
 
-  const { from, to, via, changeFrom, changeTo, addVia, changeVia, removeVia, moveVia, reverse, route, footRoute, routeLoading, routeError, calculate } = useRoutePlanner({
+  const { from, to, via, changeFrom, changeTo, addVia, changeVia, removeVia, moveVia, reverse, replaceItinerary, route, footRoute, routeLoading, routeError, calculate } = useRoutePlanner({
     onFocus: (coords) => {
       // A slow route must not move the map while someone is placing a report pin.
       const view = activeView.current;
@@ -56,6 +61,9 @@ export default function App() {
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [approximateLocation, setApproximateLocation] = useState<{ point: PlanningLocation; target: 'from' | 'report' } | null>(null);
+  const locationRequest = useRef(0);
+  useEffect(() => () => { locationRequest.current += 1; }, []);
 
   useEffect(() => {
     // Ogni sorgente fallisce in modo indipendente: la mappa resta utilizzabile anche senza dati OSM o segnalazioni.
@@ -91,18 +99,23 @@ export default function App() {
   const analysis = useMemo(() => route ? analyzeRoute(route.coords, features, reports) : null, [route, features, reports]);
   const footAnalysis = useMemo(() => footRoute ? analyzeRoute(footRoute.coords, features, reports) : null, [footRoute, features, reports]);
 
-  useEffect(() => { setSelection(null); }, [from, to, via]);
+  function cancelPlanningLocation() {
+    locationRequest.current += 1; setLocating(false); setApproximateLocation(null);
+  }
+  useEffect(() => { setSelection(null); cancelPlanningLocation(); }, [from, to, via]);
 
   const keyboardEditing = viewport.keyboardOpen && !pickMode;
   const selectedOutside = mapScope === 'route' && selectionIsOutsideRoute(selection, analysis);
 
   const setPickMode = useCallback((m: PickMode) => {
     if (m) dismissKeyboard();
+    locationRequest.current += 1; setLocating(false); setApproximateLocation(null);
     setPickModeRaw(m);
     if (m && window.matchMedia(MOBILE_LAYOUT).matches) setSheetMode('peek');
   }, []);
 
   function onPick(p: { lat: number; lng: number }) {
+    locationRequest.current += 1; setLocating(false); setApproximateLocation(null);
     const label = `Punto sulla mappa (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`;
     if (pickMode === 'from') changeFrom({ ...p, label });
     if (pickMode === 'to') changeTo({ ...p, label });
@@ -113,28 +126,27 @@ export default function App() {
     setSheetMode('half');
   }
 
-  function locate(target: 'from' | 'report') {
+  function applyLocation(p: PlanningLocation, target: 'from' | 'report') {
+    setApproximateLocation(null); setGeoError(null);
+    setUserPos(p); setFocus({ coords: [[p.lat, p.lng]], nonce: Date.now() });
+    if (target === 'from') changeFrom({ ...p, label: p.approximate ? 'La mia posizione (approssimativa)' : 'La mia posizione' });
+    else setReportPoint(p);
+  }
+
+  async function locate(target: 'from' | 'report') {
     dismissKeyboard();
-    if (!('geolocation' in navigator)) { setGeoError('Geolocalizzazione non supportata da questo browser.'); return; }
-    setLocating(true); setGeoError(null);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLocating(false);
-        const p = { lat: coords.latitude, lng: coords.longitude };
-        if (!inPisa(p.lat, p.lng)) { setGeoError('Sei fuori dall\'area di Pisa coperta da AccessGo: scegli il punto sulla mappa.'); return; }
-        setUserPos(p);
+    setLocating(true); setGeoError(null); setApproximateLocation(null); setSheetMode('half');
+    const request = ++locationRequest.current;
+    try {
+      const p = await locateForPlanning();
+      if (request !== locationRequest.current) return;
+      if (p.approximate) {
+        setApproximateLocation({ point: p, target });
         setFocus({ coords: [[p.lat, p.lng]], nonce: Date.now() });
-        if (target === 'from') changeFrom({ ...p, label: 'La mia posizione' });
-        else setReportPoint(p);
-      },
-      (err) => {
-        setLocating(false);
-        setGeoError(err.code === err.PERMISSION_DENIED
-          ? 'Permesso di geolocalizzazione negato. Seleziona il punto sulla mappa.'
-          : 'Posizione non disponibile. Seleziona il punto sulla mappa.');
-      },
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
+      } else applyLocation(p, target);
+    } catch (error) {
+      if (request === locationRequest.current) setGeoError(error instanceof Error ? error.message : 'Posizione non disponibile. Scegli un punto sulla mappa.');
+    } finally { if (request === locationRequest.current) setLocating(false); }
   }
 
   function select(s: Selection) {
@@ -156,6 +168,7 @@ export default function App() {
   }
 
   function startReport() {
+    locationRequest.current += 1; setLocating(false); setApproximateLocation(null);
     dismissKeyboard();
     setTab('report'); setSelection(null); setSheetMode('half'); setPickModeRaw(null);
     if (!reportPoint && !reportDraft.created && !reportDraft.submitting) setPickMode('report');
@@ -185,6 +198,15 @@ export default function App() {
           aria-label="Chiudi tastiera" onClick={dismissKeyboard}>Fine</button>}
       </header>
 
+      <MapSearchBar onEdit={() => {
+        setVoiceRequest(undefined); setVoiceResetKey((key) => key + 1); cancelPlanningLocation();
+      }} onRequest={(text) => {
+        dismissKeyboard(); setTab('route'); setSelection(null); setPickModeRaw(null); setSheetMode('full');
+        locationRequest.current += 1; setLocating(false); setApproximateLocation(null); setGeoError(null);
+        setVoiceRequest({ id: ++voiceRequestSequence.current, text });
+        if (bodyRef.current) bodyRef.current.scrollTop = 0;
+      }} disabled={routeLoading} />
+
       <main className={`main main--${sheetMode}`}>
         <aside className={`sheet sheet--${sheetMode}`} aria-label="Pannello AccessGo">
           <div className="sheet__tools">
@@ -199,17 +221,27 @@ export default function App() {
           </div>
           <div className="tabs" role="group" aria-label="Sezioni">
             <button type="button" aria-pressed={tab === 'route' && !selection} className="tab"
-              onClick={() => { dismissKeyboard(); setTab('route'); setSelection(null); setPickModeRaw(null); setSheetMode('half'); }}>Percorso</button>
+              onClick={() => { cancelPlanningLocation(); dismissKeyboard(); setTab('route'); setSelection(null); setPickModeRaw(null); setSheetMode('half'); }}>Percorso</button>
             <button type="button" aria-pressed={tab === 'report' && !selection} className="tab"
-              onClick={() => { dismissKeyboard(); setTab('report'); setSelection(null); setPickModeRaw(null); setSheetMode('half'); }}>Segnala</button>
+              onClick={() => { cancelPlanningLocation(); dismissKeyboard(); setTab('report'); setSelection(null); setPickModeRaw(null); setSheetMode('half'); }}>Segnala</button>
           </div>
           <div id="sheet-body" className="sheet__body" ref={bodyRef}>
             {loadError && <p className="msg msg--warn" role="status">{loadError}</p>}
             {geoError && <p className="msg msg--error" role="alert">{geoError}</p>}
+            {approximateLocation && <div className="msg msg--warn" role="status">
+              <p>Posizione approssimativa: precisione di circa {Math.round(approximateLocation.point.accuracy)} m. Controlla il punto sulla mappa prima di usarlo.</p>
+              <div className="row"><button type="button" className="btn btn--secondary" onClick={() => applyLocation(approximateLocation.point, approximateLocation.target)}>Conferma questa posizione</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setApproximateLocation(null)}>Annulla</button></div>
+            </div>}
             {selection ? (
               <DetailPanel selection={selection} status={status} onClose={() => setSelection(null)} onUpdated={upsertReport} />
             ) : tab === 'route' ? (
-              <RoutePanel onNavigationPosition={([lat, lng]) => setUserPos({ lat, lng })} from={from} to={to} via={via} onAddVia={addVia} onChangeVia={changeVia} onRemoveVia={removeVia} onMoveVia={moveVia} onReverse={reverse} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
+              <RoutePanel voiceResetKey={voiceResetKey} voiceRequest={voiceRequest} onVoiceRequestConsumed={() => setVoiceRequest(undefined)} onApplyItinerary={(itinerary) => {
+                locationRequest.current += 1; setLocating(false); setApproximateLocation(null);
+                dismissKeyboard(); setSelection(null); setPickModeRaw(null); setGeoError(null); setSheetMode('half');
+                if (bodyRef.current) bodyRef.current.scrollTop = 0;
+                if (replaceItinerary(itinerary)) void calculate();
+              }} onNavigationPosition={([lat, lng]) => setUserPos({ lat, lng })} from={from} to={to} via={via} onAddVia={addVia} onChangeVia={changeVia} onRemoveVia={removeVia} onMoveVia={moveVia} onReverse={reverse} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} onCalculate={() => {
                   dismissKeyboard(); setSelection(null); setSheetMode('half'); void calculate();
                 }} loading={routeLoading} error={routeError}
@@ -228,10 +260,12 @@ export default function App() {
         <div className="map-area">
           <MapView features={features} reports={reports} layers={layers} scope={mapScope} analysis={analysis} route={route} from={from} to={to} via={via}
             compareRoute={route?.mode === 'wheelchair' && showFoot ? footRoute : null}
-            reportPoint={reportPoint} userPos={userPos} pickMode={pickMode} selection={selection} focus={focus}
+            reportPoint={reportPoint} userPos={userPos} locationPreview={approximateLocation?.point} pickMode={pickMode} selection={selection} focus={focus}
             onPick={onPick} onSelect={select} />
           <LayersControl layers={layers} onChange={setLayers} osmDate={osm?.fetchedAt}
             scope={mapScope} onScopeChange={setMapScope} hasRoute={Boolean(route)} />
+          {!pickMode && <button type="button" className="btn btn--secondary map-locate" disabled={locating}
+            onClick={() => void locate('from')} aria-label="Localizza sulla mappa">{locating ? 'Localizzo…' : 'La mia posizione'}</button>}
           {!pickMode && <div className="map-scope-note" role="status">
             <span>{mapScope === 'all' ? 'Esplora tutta l’area' : route ? 'Ostacoli vicini al percorso attuale' : selection ? 'Elemento selezionato · nessun percorso attivo' : 'Calcola un percorso per vedere gli ostacoli vicini'}</span>
             {selectedOutside && <span className="map-scope-note__selection"> + elemento selezionato fuori filtro</span>}

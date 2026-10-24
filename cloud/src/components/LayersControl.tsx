@@ -19,7 +19,7 @@ export function LayersControl({ layers, onChange, osmDate, scope, onScopeChange,
 }) {
   const mobile = useMobileLayout();
   const { height: viewportHeight } = useAppViewport();
-  const [open, setOpen] = useState(() => !mobile);
+  const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {

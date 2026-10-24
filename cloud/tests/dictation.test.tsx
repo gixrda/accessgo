@@ -76,6 +76,64 @@ describe('explicit ElevenLabs recording and transcription', () => {
     expect(vi.mocked(transcribeAudio).mock.calls[0][0].type).toBe('audio/mp4');
   });
 
+  it('passes automatic language detection for a navigation request and preserves the accepted Chinese transcript', async () => {
+    const text = '从火车站去比萨斜塔，途经加里波第广场。';
+    vi.mocked(transcribeAudio).mockResolvedValue(text);
+    const onTranscript = vi.fn();
+    render(<DictationButton onTranscript={onTranscript} language="auto" autoPrepare maxLength={500} />);
+    await settle();
+    expect(screen.getByText(/Italiano, inglese o cinese/).textContent).toContain('rilevamento automatico');
+    expect(screen.getByText(/Italiano, inglese o cinese/).textContent).toContain('solo dopo la tua conferma');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /Detta la richiesta/ })));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /Trascrivi audio/ })));
+    expect(vi.mocked(transcribeAudio).mock.calls[0][2]).toBe('auto');
+    expect(onTranscript).toHaveBeenCalledExactlyOnceWith(text);
+  });
+
+  it('retains Italian as the default for existing report and place fields', async () => {
+    const { result } = renderHook(() => useDictation({ onTranscript: vi.fn() }));
+    await settle(); await act(async () => result.current.start());
+    await act(async () => result.current.transcribe());
+    expect(vi.mocked(transcribeAudio).mock.calls[0][2]).toBe('it');
+  });
+
+  it('notifies the parent synchronously before requesting the microphone, once per eligible start', async () => {
+    const events: string[] = [];
+    let grant!: (stream: MediaStream) => void;
+    getUserMedia.mockImplementation(() => { events.push('microphone'); return new Promise((resolve) => { grant = resolve; }); });
+    const onRecordingStart = vi.fn(() => { events.push('start'); });
+    const { result } = renderHook(() => useDictation({ onTranscript: vi.fn(), onRecordingStart, language: 'auto' }));
+    await settle();
+    act(() => { void result.current.start(); void result.current.start(); });
+    expect(events).toEqual(['start', 'microphone']);
+    expect(onRecordingStart).toHaveBeenCalledOnce();
+    await act(async () => grant(stream));
+    await act(async () => result.current.transcribe());
+    expect(onRecordingStart).toHaveBeenCalledOnce();
+  });
+
+  it('discards old language-mode transcription and rejects a 501-character navigation request intact', async () => {
+    let resolve!: (text: string) => void;
+    vi.mocked(transcribeAudio).mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    const onTranscript = vi.fn();
+    const { result, rerender } = renderHook(({ language }) => useDictation({ onTranscript, language, maxLength: 500 }), {
+      initialProps: { language: 'auto' as 'it' | 'auto' },
+    });
+    await settle(); await act(async () => result.current.start());
+    act(() => result.current.transcribe());
+    const signal = vi.mocked(transcribeAudio).mock.calls[0][1]!;
+    rerender({ language: 'it' });
+    expect(signal.aborted).toBe(true);
+    await act(async () => resolve('旧请求'));
+    expect(onTranscript).not.toHaveBeenCalled();
+    vi.mocked(transcribeAudio).mockResolvedValue('中'.repeat(501));
+    await act(async () => result.current.start());
+    await act(async () => result.current.transcribe());
+    expect(onTranscript).not.toHaveBeenCalled();
+    expect(result.current.error).toContain('501 caratteri');
+    expect(result.current.error).toContain('ne restano 500');
+  });
+
   it('stops automatically after 30 seconds but waits for an explicit upload click', async () => {
     const { result } = renderHook(() => useDictation({ onTranscript: vi.fn() }));
     await settle(); await act(async () => result.current.start());
@@ -217,5 +275,23 @@ describe('explicit ElevenLabs recording and transcription', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: /Trascrivi audio/ })));
     expect(input.value).toBe(`${original} buche`);
     expect(input.value.length).toBe(1000);
+  });
+});
+
+describe('browser transcription multipart language contract', () => {
+  it.each([undefined, 'it', 'auto'] as const)('sends only audio plus optional auto mode for %s', async (language) => {
+    const actual = await vi.importActual<typeof import('../src/lib/voiceApi.ts')>('../src/lib/voiceApi.ts');
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ text: 'Pisa Centrale', provider: 'elevenlabs', model: 'scribe_v2' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const signal = new AbortController().signal;
+    expect(await actual.transcribeAudio(new Blob(['recorded'], { type: 'audio/mp4' }), signal, language)).toBe('Pisa Centrale');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/voice/transcribe');
+    expect(init.signal).toBe(signal);
+    expect(init.headers).toBeUndefined();
+    const form = init.body as FormData;
+    expect(form.get('audio')).toMatchObject({ name: 'dettatura.m4a', type: 'audio/mp4' });
+    expect(form.get('language')).toBe(language === 'auto' ? 'auto' : null);
+    expect([...form.keys()].sort()).toEqual(language === 'auto' ? ['audio', 'language'] : ['audio']);
   });
 });

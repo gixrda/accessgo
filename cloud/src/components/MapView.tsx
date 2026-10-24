@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { useEffect, useMemo } from 'react';
-import { CircleMarker, MapContainer, Marker, Pane, Polyline, Rectangle, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { Circle, CircleMarker, MapContainer, Marker, Pane, Polyline, Rectangle, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { DEMO_BBOX, PISA_BOUNDS, type LatLngTuple, type OsmFeature, type Report, type RouteResult } from '../../shared/types.ts';
 import { CATEGORY_ICON, CATEGORY_LABEL, CERTAINTY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import { iconSvg, type IconName } from '../lib/icons.ts';
@@ -28,6 +28,7 @@ interface Props {
   via?: { id: string; place: Place | null }[];
   reportPoint: { lat: number; lng: number } | null;
   userPos: { lat: number; lng: number } | null;
+  locationPreview?: { lat: number; lng: number; accuracy: number } | null;
   pickMode: PickMode;
   selection: Selection;
   focus: Focus;
@@ -221,6 +222,10 @@ export function MapView(p: Props) {
         <CircleMarker center={[p.userPos.lat, p.userPos.lng]} radius={8} interactive={false}
           pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#0B5CAD', fillOpacity: 1 }} />
       )}
+      {p.locationPreview && <Circle center={[p.locationPreview.lat, p.locationPreview.lng]} radius={p.locationPreview.accuracy}
+        pathOptions={{ color: '#b54800', weight: 2, dashArray: '5 5', fillOpacity: 0.12 }}>
+        <Tooltip permanent>Posizione approssimativa · da confermare</Tooltip>
+      </Circle>}
     </MapContainer>
   );
 }
