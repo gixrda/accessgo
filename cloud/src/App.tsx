@@ -55,7 +55,7 @@ export default function App() {
       if (view.tab === 'route' && !view.pickMode && !view.selection) setFocus({ coords, nonce: Date.now() });
     },
   });
-  const [showFoot, setShowFoot] = useState(true);
+  const [showFoot, setShowFoot] = useState(false);
   const reportDraft = useReportDraft(upsertReport);
   const { point: reportPoint, setPoint: setReportPoint } = reportDraft;
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -254,7 +254,7 @@ export default function App() {
                 onLocate={locate} locating={locating} status={status}
                 onShow={(r) => select({ type: 'report', report: r })} actionsTarget={actionsTarget} />
             )}
-            <p className="disclaimer">Prototipo per hackathon. I percorsi e i dati non sono verificati sul posto: valuta sempre la situazione reale.</p>
+            <p className="disclaimer">Prototipo · percorsi non verificati sul posto.</p>
           </div>
           <div className="sheet__actions" ref={setActionsTarget} />
         </aside>

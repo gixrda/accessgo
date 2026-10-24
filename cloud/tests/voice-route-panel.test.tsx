@@ -72,7 +72,7 @@ describe('voice-assisted route planning with explicit location review', () => {
 
   it('keeps the initial compact panel small and waits for the top search', () => {
     render(<VoiceRoutePanel onApply={vi.fn()} compact />);
-    expect(screen.getByText('Pianifica con la voce o la ricerca in alto.')).toBeTruthy();
+    expect(screen.queryByText('Pianifica con la voce o la ricerca in alto.')).toBeNull();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Parla per pianificare' })).toBeNull();
     expect(api.interpretRoute).not.toHaveBeenCalled();

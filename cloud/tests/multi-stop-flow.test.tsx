@@ -43,7 +43,15 @@ it('adds, fills and routes A→B→C; deleting or reversing updates the full iti
   const [a,c,profile,,via] = vi.mocked(api.route).mock.calls[0];
   expect(a.lat).toBe(43.72); expect(c.lat).toBe(43.722); expect(profile).toBe('wheelchair');
   expect(via?.map((point) => point.lat)).toEqual([43.721]);
-  fireEvent.click(screen.getByRole('button', {name:'Inverti partenza e destinazione'}));
+  const manual = screen.getByText('Modifica le tappe').closest('details')!;
+  const data = screen.getByText('Dati e confronto percorsi').closest('details')!;
+  expect(manual.open).toBe(false);
+  expect(data.open).toBe(false);
+  fireEvent.click(screen.getByText('Dati e confronto percorsi'));
+  expect(data.open).toBe(true);
+  fireEvent.click(screen.getByText('Modifica le tappe'));
+  expect(manual.open).toBe(true);
+  fireEvent.click(await screen.findByRole('button', {name:'Inverti partenza e destinazione'}));
   expect(screen.getByLabelText('Itinerary').textContent).toBe('43.722,43.721,43.72');
   fireEvent.click(screen.getByRole('button', {name:'Elimina tappa 1'}));
   expect(screen.getByLabelText('Itinerary').textContent).toBe('43.722,43.72');

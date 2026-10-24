@@ -104,7 +104,9 @@ describe('map scope through App navigation', () => {
     expect(screen.getByText(/elemento selezionato fuori filtro/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Indietro/ }));
     expect(rendered('Rendered features')).toBe('near-osm');
-    fireEvent.click(screen.getByRole('button', { name: 'Rimuovi destinazione' }));
+    const edit = screen.getByText('Modifica le tappe');
+    if (!edit.closest('details')!.open) fireEvent.click(edit);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rimuovi destinazione' }));
     expect(rendered('Rendered features')).toBe('');
     expect(rendered('Rendered reports')).toBe('');
     expect(screen.queryByText(/elemento selezionato fuori filtro/)).toBeNull();
@@ -115,7 +117,10 @@ describe('map scope through App navigation', () => {
     const pending = new Promise<RouteResult>((resolve) => { complete = resolve; });
     vi.mocked(api.route).mockImplementation(async (_from, _to, profile) => profile === 'foot'
       ? { ...mainRoute, mode: 'foot', coords: [[43.718, 10.4], [43.718, 10.405]] } : pending);
-    fireEvent.click(screen.getByRole('button', { name: 'Calcola percorso' }));
+    const manual = screen.getByText('Modifica le tappe').closest('details')!;
+    expect(manual.open).toBe(false);
+    fireEvent.click(screen.getByText('Modifica le tappe'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Calcola percorso' }));
     expect(rendered('Rendered features')).toBe('');
     expect(rendered('Rendered reports')).toBe('');
     await act(async () => complete(mainRoute));
