@@ -18,7 +18,7 @@ describe('Gemma configuration and request', () => {
     expect(url).toBe(`https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_GEMMA_MODEL}:generateContent`);
     expect(url).not.toContain('key');
     expect(init.headers['x-goog-api-key']).toBe('test-private-key');
-    expect(init.redirect).toBe('error');
+    expect(init.redirect).toBe('manual');
     const body = JSON.parse(init.body);
     expect(body.systemInstruction.parts).toEqual([{ text: input.systemInstruction }]);
     expect(body.contents[0].parts).toEqual([{ text: input.userText }]);
@@ -68,6 +68,15 @@ describe('Gemma configuration and request', () => {
 });
 
 describe('retry and total deadline', () => {
+  it.each([301, 302, 303, 307, 308])('refuses HTTP %i redirects without forwarding credentials or retrying', async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status, headers: { Location: 'https://other-provider.test/' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(call()).rejects.toEqual(new GemmaError('unavailable'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].redirect).toBe('manual');
+    expect(fetchMock.mock.calls[0][0]).toContain('https://generativelanguage.googleapis.com/');
+  });
+
   it.each([429, 500, 502, 503, 504])('retries status %i once', async (status) => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response('private provider error', { status })).mockResolvedValueOnce(success());

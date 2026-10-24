@@ -1,5 +1,6 @@
 import { inPisa, type OsmDataset } from '../shared/types.ts';
-import { aiProvider } from './ai.ts';
+import { aiProvider, interpret } from './ai.ts';
+import { analysisDescription, reserveAnalysisSlot } from './analysis-preview.ts';
 import { HttpError, type Env } from './errors.ts';
 import { createGeocoder } from './geocoding.ts';
 import { createReportStore } from './reports.ts';
@@ -47,7 +48,7 @@ export async function readJsonBody(req: Request): Promise<unknown> {
   catch { throw new HttpError(400, 'JSON non valido.'); }
 }
 
-/** Signed-in writes require Origin; anonymous route clients may omit it. */
+/** Reporting and analysis require Origin; anonymous route clients may omit it. */
 export function requireSameOrigin(req: Request, required: boolean): void {
   const origin = req.headers.get('origin');
   if ((required && !origin) || (origin && origin !== new URL(req.url).origin)
@@ -86,6 +87,13 @@ export function createCloudApi({ env, db, osm, getUserId }: CloudApiOptions) {
       }
       if (method === 'GET' && path === '/api/osm') return send(200, osm, 'public, max-age=300');
       if (method === 'GET' && path === '/api/reports') return send(200, await createReportStore(database()).all());
+      if (method === 'POST' && path === '/api/analyze') {
+        requireSameOrigin(req, true);
+        const description = analysisDescription(await readJsonBody(req));
+        await reserveAnalysisSlot(db);
+        // Preview does not use the report store or look up the visitor's identity.
+        return send(200, { interpretation: await interpret(description, env), published: false });
+      }
       if (method === 'POST' && path === '/api/reports') {
         const userId = await getUserId();
         if (!userId) throw new HttpError(401, 'Accedi con ChatGPT per inviare una segnalazione. Puoi usare la mappa senza accedere.');

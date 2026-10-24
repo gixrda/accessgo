@@ -1,6 +1,6 @@
 # AccessGo · Pisa — public cloud edition
 
-Italian accessible-navigation prototype. This edition retains the mobile layout, route-adjacent obstacle filter, full-map toggle, honest OSM attributes and explicit address search from local branch `codex/mobile-first-round` (source commit `f0828a2`). The published source is captured from Site commit `62593066f93726c79b50f6f02570db185f0d02a6` (version 3), adding more reliable Gemma API calls and conservative report validation. This `cloud/` directory is a separate runnable app; the repository-root Node/Vite app retains the team's newer work and is unchanged by this update. See [SOURCE.md](SOURCE.md) for the handoff and integration boundary.
+Italian accessible-navigation prototype. This edition retains the mobile layout, route-adjacent obstacle filter, full-map toggle, honest OSM attributes and explicit address search from local branch `codex/mobile-first-round` (source commit `f0828a2`). This source snapshot is captured from Site commit `0f54c63995506c389856a220c3f738c65061d86f` (version 4), adding an analysis-only Gemma preview that does not create public reports, plus a fix for Gemma requests in the Worker runtime. This `cloud/` directory is a separate runnable app; the repository-root Node/Vite app retains the team's newer work and is unchanged by this update. See [SOURCE.md](SOURCE.md) for the handoff and integration boundary.
 
 Live site: **https://accessogo.xyxzwb.chatgpt.site/**
 
@@ -10,12 +10,12 @@ Live site: **https://accessogo.xyxzwb.chatgpt.site/**
 - Input stays inside the scrollable form; map and panel size recover after keyboard dismissal. Pinch zoom is retained.
 - Route-adjacent obstacles are shown by default; the complete-area toggle remains available.
 - Explicit Pisa address search, mobile panels, draft persistence and stale-request cancellation are included.
-- The earlier version 2 passed 115 automated tests, including desktop viewport and keyboard-event simulations. Version 3 validation is listed below; actual iPhone Safari keyboard animation still needs device validation.
+- The earlier version 2 passed 115 automated tests, including desktop viewport and keyboard-event simulations. Current version 4 validation is listed below; actual iPhone Safari keyboard animation still needs device validation.
 
 ## Hosting
 
 - React / Leaflet frontend, Vinext API routes, Cloudflare Workers through Sites.
-- Public map, search and routing. Submitting a public report requires ChatGPT sign-in; no account is needed to browse or plan a route.
+- Public map, search, routing and analysis-only AI previews. Submitting a public report requires ChatGPT sign-in; no account is needed to browse, plan a route or preview an interpretation.
 - Reports are stored in Cloudflare D1. New reports are always unverified. A secret moderator token is required to change status; moderation stays disabled until configured.
 - No local `.env`, existing report database, API key or GitHub credential is copied to the cloud.
 - Real OSM snapshot: 1,158 roads and facilities, acquired 2026-10-24. The coverage boundary is shown on the map. Missing accessibility tags never mean verified safe.
@@ -66,10 +66,24 @@ Il comando invia **tre descrizioni sintetiche** in italiano e inglese, comprese 
 
 Ogni interpretazione ha un budget complessivo di **25 secondi**, con al massimo **un nuovo tentativo** per errori transitori, entro lo stesso budget. Chiave assente, timeout, limiti del servizio o risposta non valida attivano regole locali, indicate esplicitamente come `fallback`: la disponibilità della chiave non dimostra che una chiamata sia riuscita.
 
-Le risposte sono controllate per formato, citazioni presenti nel testo e numeri supportati dalla descrizione. Questi controlli riducono alcune invenzioni, ma **non garantiscono la correttezza semantica né verificano l'accessibilità reale**. La posizione resta scelta sulla mappa e le nuove segnalazioni restano non verificate; Puoi scegliere manualmente la categoria nel modulo; l'interpretazione automatica viene mostrata dopo l'invio.
+Le risposte sono controllate per formato, citazioni presenti nel testo e numeri supportati dalla descrizione. Questi controlli riducono alcune invenzioni, ma **non garantiscono la correttezza semantica né verificano l'accessibilità reale**. La posizione resta scelta sulla mappa e le nuove segnalazioni restano non verificate. È possibile scegliere manualmente la categoria nel modulo.
+
+### Provare l'AI senza pubblicare
+
+In **Segnala**, scrivi una descrizione e premi **Analizza senza pubblicare**. Non servono account, coordinate o una categoria manuale. Il risultato è un'**Anteprima · non pubblicata** e indica il motore effettivamente usato: Gemma oppure regole locali in caso di fallback. Puoi usare descrizioni sintetiche per una dimostrazione, per esempio `Non ci sono gradini. Il problema è una buca profonda.`
+
+L'endpoint dedicato `POST /api/analyze` invia solo la descrizione al servizio AI. AccessGo non salva il testo o il risultato nel database, non crea una segnalazione e non aggiunge marker sulla mappa. L'anteprima resta nella pagina e viene scartata quando modifichi il testo o lasci il pannello. Il servizio AI esterno riceve il testo per elaborarlo; non inserire informazioni riservate.
+
+La prova usa un intervallo globale minimo di 5 secondi fra richieste, applicato atomicamente nel database esistente. Viene conservato solo un timestamp tecnico in `provider_limits`, senza testi, risultati, coordinate o identificativi dei visitatori. Richieste troppo ravvicinate ricevono HTTP 429; nessun dato di prova entra in `reports` o nella cache degli indirizzi.
+
+**Invia segnalazione** rimane un'azione distinta: richiede accesso e un punto sulla mappa, ricalcola l'interpretazione e pubblica una nuova segnalazione non verificata. Non premere questo pulsante per pubblicare esempi inventati. La prova non è una bozza persistente di pubblicazione.
 
 ## Product limits
 
-Version 3 validation on 2026-10-24 in the Site source checkout: TypeScript, production build and 203 automated tests passed. Three synthetic live Google Gemma API cases (Italian step, negated steps with a pothole, English step) returned `engine: gemma` with the expected category in 15.768, 13.101 and 8.813 seconds respectively. This is a small connectivity/regression smoke test, not an accuracy benchmark. These checks did not publish reports to the public database. The repository-root app was not changed or retested in this round; its earlier handoff checks are recorded separately in [SOURCE.md](SOURCE.md).
+Version 4 validation on 2026-10-24 in the Site source checkout: TypeScript, production build and **238 automated tests passed**. A real local Worker request to `POST /api/analyze` returned `engine: gemma`, `uneven_surface` and `published: false` in about 8 seconds. The preview was also checked in the browser at 390 × 844: a real Gemma result appeared after one earlier transient fallback. The local report list contained zero reports before and after the previews. Tests cover anonymous access, unchanged stored reports, no preview-content persistence, shared rate limiting, editing/cancellation, truthful fallback and separate authenticated publication. Sites version 4 was then deployed successfully. A browser check on the public site at 390 × 844, without sign-in or a map point, returned a real Gemma preview for `Non ci sono gradini. Il problema è una buca profonda.`, classified as `Superficie irregolare` with obstacle `buca profonda` and the label `Anteprima · non pubblicata`. This limited integration check does not guarantee provider availability or general model accuracy.
+
+These checks found and fixed a Worker incompatibility: `fetch` now uses `redirect: 'manual'` and explicitly rejects 3xx responses. The previous `redirect: 'error'` setting was unsupported in the Worker runtime. Version 3's direct Node Gemma smoke tests did not exercise that runtime, so they were insufficient to prove that hosted requests worked. The three earlier direct API cases returned the expected categories in approximately 9–16 seconds; those historical connectivity checks are separate from the new local Worker/browser validation and are not an accuracy benchmark. Provider failures remain possible and are labelled as fallback.
+
+Historical counts remain distinct: cloud version 2 passed 115 tests; cloud version 3 passed 203 tests; the repository-root app passed 93 tests at the original handoff. The root app was not changed or retested in this round. Details are recorded in [SOURCE.md](SOURCE.md).
 
 This is a hackathon prototype, not guaranteed safe navigation. OSM coverage and community reports may be incomplete or outdated. External map tiles, search and route providers can be temporarily unavailable. This release adds no ElevenLabs or spoken navigation. User reports are public: submit obstacles, not personal or confidential information.
