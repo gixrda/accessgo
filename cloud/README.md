@@ -1,6 +1,6 @@
 # AccessGo · Pisa — public cloud edition
 
-Italian accessible-navigation prototype. This edition retains the mobile layout, route-adjacent obstacle filter, full-map toggle, honest OSM attributes and explicit address search from local branch `codex/mobile-first-round` (source commit `f0828a2`). This source snapshot is captured from Site commit `0f54c63995506c389856a220c3f738c65061d86f` (version 4), adding an analysis-only Gemma preview that does not create public reports, plus a fix for Gemma requests in the Worker runtime. This `cloud/` directory is a separate runnable app; the repository-root Node/Vite app retains the team's newer work and is unchanged by this update. See [SOURCE.md](SOURCE.md) for the handoff and integration boundary.
+Italian accessible-navigation prototype. This edition retains the mobile layout, route-adjacent obstacle filter, full-map toggle, honest OSM attributes and explicit address search from local branch `codex/mobile-first-round` (source commit `f0828a2`). This source snapshot is captured from Site commit `adf8ff2390f77b347eb9503007608ffb7694c2d7` (version 5), adding explicit absence/uncertainty categories, ordered routes with intermediate stops, and ElevenLabs dictation and spoken navigation. The analysis-only preview from version 4 remains available without creating public reports. This `cloud/` directory is a separate runnable app; the repository-root Node/Vite app retains the team's newer work and is unchanged by this update. See [SOURCE.md](SOURCE.md) for the handoff and integration boundary.
 
 Live site: **https://accessogo.xyxzwb.chatgpt.site/**
 
@@ -10,7 +10,7 @@ Live site: **https://accessogo.xyxzwb.chatgpt.site/**
 - Input stays inside the scrollable form; map and panel size recover after keyboard dismissal. Pinch zoom is retained.
 - Route-adjacent obstacles are shown by default; the complete-area toggle remains available.
 - Explicit Pisa address search, mobile panels, draft persistence and stale-request cancellation are included.
-- The earlier version 2 passed 115 automated tests, including desktop viewport and keyboard-event simulations. Current version 4 validation is listed below; actual iPhone Safari keyboard animation still needs device validation.
+- The earlier version 2 passed 115 automated tests, including desktop viewport and keyboard-event simulations. Current version 5 validation is listed below; actual iPhone Safari keyboard animation still needs device validation.
 
 ## Hosting
 
@@ -50,11 +50,11 @@ GitHub pushes do not deploy this app automatically. The existing Sites project r
 
 ## Optional server secrets
 
-See `.env.example` for names only. Set values through Sites environment settings: `ORS_API_KEY`, `GEMINI_API_KEY`, `GEMMA_MODEL`, `ADMIN_TOKEN`, `NOMINATIM_SEARCH_URL`. Never add keys to `VITE_` variables or client code. No paid API is required for the current fallback configuration.
+See `.env.example` for names only. Set values through Sites environment settings: `ORS_API_KEY`, `GEMINI_API_KEY`, `GEMMA_MODEL`, `ADMIN_TOKEN`, `NOMINATIM_SEARCH_URL`, `ELEVENLABS_API_KEY`, and optionally `ELEVENLABS_VOICE_ID` / `ELEVENLABS_TTS_MODEL`. Never add keys to `VITE_` variables or client code. The map and rule-based analysis do not require a paid API. Optional ElevenLabs voice requests consume the configured account’s credits.
 
 ### Configurare e verificare Gemma
 
-Per le prove locali usa **Node 24** e crea `cloud/.dev.vars`: il file è ignorato da Git. Inserisci `GEMINI_API_KEY` con la tua chiave Google AI Studio; `GEMMA_MODEL` è facoltativo e il modello predefinito è `gemma-4-26b-a4b-it`. Non condividere il file o la chiave. Per il sito pubblico configura gli stessi valori nelle impostazioni server di Sites: il file locale non configura automaticamente il sito pubblicato.
+Per le prove locali usa **Node 24** e crea `cloud/.dev.vars` dalla radice del repository: il file è ignorato da Git. Inserisci `GEMINI_API_KEY` con la tua chiave Google AI Studio; `GEMMA_MODEL` è facoltativo e il modello predefinito è `gemma-4-26b-a4b-it`. Non condividere il file o la chiave. Per il sito pubblico configura gli stessi valori nelle impostazioni server di Sites: il file locale non configura automaticamente il sito pubblicato.
 
 Con le credenziali configurate, avvia una verifica reale dell'API dalla directory `cloud/`:
 
@@ -80,10 +80,41 @@ La prova usa un intervallo globale minimo di 5 secondi fra richieste, applicato 
 
 ## Product limits
 
-Version 4 validation on 2026-10-24 in the Site source checkout: TypeScript, production build and **238 automated tests passed**. A real local Worker request to `POST /api/analyze` returned `engine: gemma`, `uneven_surface` and `published: false` in about 8 seconds. The preview was also checked in the browser at 390 × 844: a real Gemma result appeared after one earlier transient fallback. The local report list contained zero reports before and after the previews. Tests cover anonymous access, unchanged stored reports, no preview-content persistence, shared rate limiting, editing/cancellation, truthful fallback and separate authenticated publication. Sites version 4 was then deployed successfully. A browser check on the public site at 390 × 844, without sign-in or a map point, returned a real Gemma preview for `Non ci sono gradini. Il problema è una buca profonda.`, classified as `Superficie irregolare` with obstacle `buca profonda` and the label `Anteprima · non pubblicata`. This limited integration check does not guarantee provider availability or general model accuracy.
+**Version 5 validation, 2026-10-24:** TypeScript checking, the production build and **356 automated tests passed**. Real local Worker calls to Gemma returned the expected `no_obstacle`, `unclear` and `uneven_surface` categories for synthetic absence, ambiguity and negation/pothole descriptions. All three results identified `engine: gemma` and `published: false`; the report list was unchanged. These checks cover the new categories and integration, not general AI accuracy.
 
-These checks found and fixed a Worker incompatibility: `fetch` now uses `redirect: 'manual'` and explicitly rejects 3xx responses. The previous `redirect: 'error'` setting was unsupported in the Worker runtime. Version 3's direct Node Gemma smoke tests did not exercise that runtime, so they were insufficient to prove that hosted requests worked. The three earlier direct API cases returned the expected categories in approximately 9–16 seconds; those historical connectivity checks are separate from the new local Worker/browser validation and are not an accuracy benchmark. Provider failures remain possible and are labelled as fallback.
+A real three-point Valhalla request returned a complete itinerary of approximately **1,210 metres**, with **76 geometry coordinates and 17 maneuvers**. A separate browser check at **390 × 844** completed a three-point route and displayed **1.2 km and 15 instructions**. This verifies route retrieval and the narrow-screen flow; it does not verify physical accessibility or walking GPS behavior.
 
-Historical counts remain distinct: cloud version 2 passed 115 tests; cloud version 3 passed 203 tests; the repository-root app passed 93 tests at the original handoff. The root app was not changed or retested in this round. Details are recorded in [SOURCE.md](SOURCE.md).
+The ElevenLabs implementation and its automated tests passed, including upload validation, explicit provider attribution, bounded timeouts, shared quotas and no audio/transcript persistence. A real local Worker roundtrip succeeded after credential and permission configuration: TTS returned HTTP 200 with a 33,897-byte MP3 for `Tra cento metri, gira a destra.`; Scribe v2 returned HTTP 200 and `Tra 100 metri gira a destra`. This uses synthetic audio and verifies server integration only; it does not test a physical microphone or walking navigation. The server handles invalid credentials and missing permissions with a safe configuration message, without exposing upstream details.
 
-This is a hackathon prototype, not guaranteed safe navigation. OSM coverage and community reports may be incomplete or outdated. External map tiles, search and route providers can be temporarily unavailable. This release adds no ElevenLabs or spoken navigation. User reports are public: submit obstacles, not personal or confidential information.
+**Historical version 4 validation:** TypeScript, the production build and **238 automated tests** passed for the earlier analysis-preview release. A real local Worker request to `/api/analyze` returned `engine: gemma`, the expected pothole category and `published: false` in about 8 seconds. The local report list remained empty after previews. Regression tests cover anonymous access, unchanged stored reports, no preview-content persistence, shared rate limiting, editing/cancellation, honest fallback and independent authenticated publication.
+
+This integration check also found and fixed a Worker incompatibility: `fetch` must use `redirect: 'manual'`, with redirects rejected explicitly, rather than the unsupported `redirect: 'error'`. Earlier Node-only Gemma tests did not exercise that runtime. The earlier three synthetic direct Google API tests passed in approximately 9–16 seconds; these small checks are not an accuracy benchmark. Provider failures remain possible and are reported as fallback, not as successful Gemma analysis.
+
+Sites version 5 was deployed successfully on 2026-10-24; deployment success is separate from the local integration checks above and from a public-browser check. Historical test counts remain distinct: version 2 passed 115 tests, version 3 passed 203, and version 4 passed 238. The repository-root app passed 93 tests at the original handoff and was not changed or retested in this round. See [SOURCE.md](SOURCE.md) for source history.
+
+This is a hackathon prototype, not guaranteed safe navigation. OSM coverage and community reports may be incomplete or outdated. External map tiles, search and route providers can be temporarily unavailable. Voice guidance works only in the foreground, requires the page and screen to stay active, and has no automatic rerouting. Real iPhone microphone capture, audio permissions/playback and walking GPS behavior remain unverified on a physical device. User reports are public: submit obstacles, not personal or confidential information.
+
+## Nuove categorie di interpretazione
+
+L’anteprima distingue **Nessun ostacolo segnalato** (`no_obstacle`) da **Descrizione da chiarire** (`unclear`). La prima descrive soltanto ciò che è scritto: non certifica una strada accessibile e non risolve automaticamente segnalazioni precedenti. Non può essere pubblicata come ostacolo. Una descrizione incerta richiede chiarimenti o una categoria scelta esplicitamente prima della pubblicazione. **Altro ostacolo** rimane per un problema identificato ma diverso dalle categorie note. I rapporti già salvati restano compatibili.
+
+## Percorsi con più tappe
+
+In **Percorso**, imposta partenza e destinazione e premi **+ Aggiungi tappa**. Sono consentiti fino a tre punti intermedi (cinque punti totali); ogni tappa si cerca oppure si seleziona sulla mappa. I pulsanti **Prima**, **Dopo**, **Elimina tappa** modificano l’ordine. Il pulsante di inversione inverte l’intero itinerario. Non viene ottimizzato automaticamente l’ordine delle tappe.
+
+Tutti i punti devono essere completi e nell’area Pisa prima del calcolo. Il servizio riceve l’intero ordine; una risposta con un tratto mancante non diventa un itinerario parziale. La mappa, il confronto e il filtro ostacoli usano l’intero percorso. Modificare un punto cancella il percorso e le indicazioni precedenti.
+
+## Voce con ElevenLabs
+
+La trascrizione e la sintesi vocale usano **ElevenLabs**, con chiave soltanto nel Worker. Per lo sviluppo locale inserisci `ELEVENLABS_API_KEY` in `cloud/.dev.vars`, che è ignorato da Git. Per la versione ospitata configura lo stesso segreto in Sites e ridistribuisci la versione. Non mettere la chiave in variabili `VITE_`, sorgenti client o parametri URL.
+
+- **Dettatura**: registra una breve frase in italiano e conferma la trascrizione. L’audio viene inviato al backend AccessGo e poi a ElevenLabs Scribe v2; il testo riconosciuto rimane modificabile, senza ricerca, analisi o pubblicazione automatica. Registrazione limitata a 30 secondi e upload a 2 MiB. Annullamento, cambio del testo o uscita dal pannello scartano le risposte obsolete e rilasciano il microfono.
+- **Guida vocale**: ElevenLabs Flash v2.5 legge le indicazioni italiane effettivamente restituite dal routing. La voce predefinita è la voce standard documentata George; `ELEVENLABS_VOICE_ID` permette una voce disponibile nel proprio account. Non vengono inventate svolte da Gemma.
+- **GPS**: la guida parte solo con un’azione esplicita e autorizzazione della posizione. Gli avvisi usano la distanza lungo la geometria del percorso, con un anticipo approssimativo vicino a 100 metri. GPS impreciso, posizione obsoleta o uscita dal percorso sospendono le istruzioni. Non è disponibile un ricalcolo automatico e occorre tenere pagina e schermo attivi.
+- **Anteprima**: i pulsanti di prova/ascolto permettono di sentire le indicazioni senza avviare il GPS. Una prova audio non dimostra il funzionamento durante una passeggiata reale.
+
+Le API voce sono `/api/voice/status`, `/api/voice/transcribe` e `/api/voice/speak`. Gli errori di configurazione, autorizzazione, quota, formato audio o rete sono mostrati esplicitamente; non vengono presentati come un successo ElevenLabs. AccessGo non salva audio o trascrizioni nel database. ElevenLabs riceve i contenuti per elaborarli e applica le proprie condizioni di conservazione. Sono presenti limiti condivisi per contenere richieste ripetute e consumo crediti; non sono adatti a traffico pubblico illimitato.
+
+Riferimenti tecnici: [ElevenLabs STT](https://elevenlabs.io/docs/api-reference/speech-to-text/convert), [ElevenLabs TTS](https://elevenlabs.io/docs/api-reference/text-to-speech/convert), [Valhalla directions](https://valhalla.github.io/valhalla/api/route/api-reference/).
+
+V5 public browser check (390 × 844): an ordered three-point route returned 960 m and 11 instructions; ElevenLabs playback reached the playing state. See [SOURCE.md](SOURCE.md) for the distinction between local synthetic tests, public browser verification and remaining physical-device checks.

@@ -4,6 +4,8 @@ import { compareRoutes, comparisonVerdict } from '../lib/compare.ts';
 import { CATEGORY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import { Icon } from './Icon.tsx';
 import { PanelActions } from './PanelActions.tsx';
+import { NavigationPanel } from './NavigationPanel.tsx';
+import { MAX_VIA_STOPS, type ViaStop } from '../hooks/useRoutePlanner.ts';
 import { PlaceField } from './PlaceField.tsx';
 import type { PickMode, Selection } from './MapView.tsx';
 
@@ -11,8 +13,15 @@ type Place = { lat: number; lng: number; label: string };
 
 interface Props {
   actionsTarget?: HTMLElement | null;
+  onNavigationPosition?: (coordinate: [number, number]) => void;
   from: Place | null;
   to: Place | null;
+  via?: ViaStop[];
+  onAddVia?: () => void;
+  onChangeVia?: (id: string, place: Place | null) => void;
+  onRemoveVia?: (id: string) => void;
+  onMoveVia?: (id: string, direction: -1 | 1) => void;
+  onReverse?: () => void;
   setFrom: (p: Place | null) => void;
   setTo: (p: Place | null) => void;
   pickMode: PickMode;
@@ -175,18 +184,36 @@ export function RoutePanel(p: Props) {
       <PlaceField letter="A" label="Partenza" value={p.from} picking={p.pickMode === 'from'}
         onPick={() => p.setPickMode(p.pickMode === 'from' ? null : 'from')} onSet={(place) => { p.setPickMode(null); p.setFrom(place); }}
         onLocate={() => { p.setPickMode(null); p.onLocate('from'); }} locating={p.locating} />
-      <PlaceField letter="B" label="Destinazione" value={p.to} picking={p.pickMode === 'to'}
+      {(p.via ?? []).map((stop, index) => <div key={stop.id} className="via-stop">
+        <PlaceField letter={String.fromCharCode(66 + index)} label={`Tappa ${index + 1}`} value={stop.place}
+          picking={p.pickMode === `via:${stop.id}`}
+          onPick={() => p.setPickMode(p.pickMode === `via:${stop.id}` ? null : `via:${stop.id}`)}
+          onSet={(place) => { p.setPickMode(null); p.onChangeVia?.(stop.id, place); }} />
+        <div className="row via-stop__actions">
+          <button type="button" className="btn btn--ghost btn--sm" disabled={index === 0}
+            aria-label={`Sposta tappa ${index + 1} prima`} onClick={() => { p.setPickMode(null); p.onMoveVia?.(stop.id, -1); }}>↑ Prima</button>
+          <button type="button" className="btn btn--ghost btn--sm" disabled={index === (p.via?.length ?? 0) - 1}
+            aria-label={`Sposta tappa ${index + 1} dopo`} onClick={() => { p.setPickMode(null); p.onMoveVia?.(stop.id, 1); }}>↓ Dopo</button>
+          <button type="button" className="btn btn--ghost btn--sm" aria-label={`Elimina tappa ${index + 1}`}
+            onClick={() => { p.setPickMode(null); p.onRemoveVia?.(stop.id); }}>Elimina tappa</button>
+        </div>
+      </div>)}
+      {p.onAddVia && <button type="button" className="btn btn--secondary btn--sm add-stop"
+        disabled={(p.via?.length ?? 0) >= MAX_VIA_STOPS} onClick={() => { p.setPickMode(null); p.onAddVia?.(); }}>+ Aggiungi tappa</button>}
+      <PlaceField letter={String.fromCharCode(66 + (p.via?.length ?? 0))} label="Destinazione" value={p.to} picking={p.pickMode === 'to'}
         onPick={() => p.setPickMode(p.pickMode === 'to' ? null : 'to')} onSet={(place) => { p.setPickMode(null); p.setTo(place); }} />
+      {(p.via?.length ?? 0) > 0 && <p className="help">Visita le tappe nell’ordine indicato, fino a 5 punti. Completa tutte le tappe prima di calcolare.</p>}
       <PanelActions target={p.actionsTarget}>
       <div className="row">
-        <button type="button" className="btn btn--primary btn--block" onClick={p.onCalculate} disabled={!p.from || !p.to || p.loading}>
+        <button type="button" className="btn btn--primary btn--block" onClick={p.onCalculate} disabled={!p.from || !p.to || p.via?.some((stop) => !stop.place) || p.loading}>
           {p.loading ? 'Calcolo in corso…' : 'Calcola percorso'}
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => { p.setPickMode(null); p.setFrom(p.to); p.setTo(p.from); }}
+        <button type="button" className="btn btn--ghost" onClick={() => { p.setPickMode(null); if (p.onReverse) p.onReverse(); else { p.setFrom(p.to); p.setTo(p.from); } }}
           disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti">⇅</button>
       </div>
       </PanelActions>
       {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
+      {p.route && <NavigationPanel route={p.route} onPosition={p.onNavigationPosition} />}
       {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} compare={p} />}
       {!p.route && !p.error && !p.loading && (
         <p className="hint">Imposta partenza e destinazione cercando un indirizzo o toccando la mappa. AccessGo mostra le criticità note e quanto sono complete le informazioni lungo il tragitto.</p>

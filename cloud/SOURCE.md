@@ -1,14 +1,16 @@
 # Provenienza e integrazione
 
-Questa cartella contiene lo snapshot sorgente AccessGo v4 del 24 ottobre 2026, pubblicato sul sito esistente https://accessogo.xyxzwb.chatgpt.site/. Le verifiche locali e quelle della versione pubblicata sono distinte.
+Questa cartella contiene lo snapshot sorgente AccessGo v5 del 24 ottobre 2026, pubblicato sul sito esistente https://accessogo.xyxzwb.chatgpt.site/. Le verifiche locali e quelle della versione pubblicata sono distinte.
 
-- Commit sorgente Sites v4: `0f54c63995506c389856a220c3f738c65061d86f`.
+- Commit sorgente Sites v5: `adf8ff2390f77b347eb9503007608ffb7694c2d7`.
+- Deploy Sites v5 riuscito il 24 ottobre 2026 alle 13:08:56 UTC, con revisione ambiente 2.
+- Snapshot Sites precedente v4: `0f54c63995506c389856a220c3f738c65061d86f`.
 - Snapshot Sites precedente v3: `62593066f93726c79b50f6f02570db185f0d02a6`.
 - Snapshot Sites precedente v2: `6047df2fe500511074c966b40663c6ebed8d9a59`.
 - Base delle migliorie mobile/ricerca: `f0828a2` del ramo locale `codex/mobile-first-round`.
-- Base applicativa del team conservata nella radice: `dc0aa89` (inclusa in `origin/main` al commit `c712e09`).
-- Il lavoro prosegue sul ramo `codex/gemma-api-reliability`. La precedente [PR #2](https://github.com/gixrda/accessgo/pull/2) è stata integrata dal team durante questo round; il ramo è stato aggiornato a `origin/main` (`c712e09`) prima del nuovo commit. Questa modifica interessa solo `cloud/`; nessun push diretto o merge su `main` è stato effettuato per questa versione.
-- I file applicativi, il lockfile e i test cloud corrispondono al commit sorgente v4 indicato sopra. Solo questa nota e il README sono stati aggiunti/aggiornati per il passaggio al team.
+- Base del ramo per questo aggiornamento: `0c1dabf`, dopo l’integrazione della PR #3 da parte del team. La base applicativa nella radice, già documentata come `dc0aa89`, resta separata dallo snapshot cloud.
+- Il lavoro prosegue sul ramo `codex/gemma-api-reliability`. La precedente [PR #3](https://github.com/gixrda/accessgo/pull/3), relativa alla versione 4, è stata integrata dal team; questo aggiornamento parte da `0c1dabf`. La precedente PR #2 riguardava la versione 3. Le modifiche della versione 5 interessano solo `cloud/`; nessun push diretto o merge su `main` viene eseguito da questo aggiornamento.
+- I file applicativi, il lockfile e i test cloud corrispondono al commit sorgente v5 indicato sopra. Solo questa nota e il README sono stati aggiunti/aggiornati per il passaggio al team.
 
 ## Cosa eseguire
 
@@ -22,7 +24,25 @@ I commit recenti del team `c5ef551`, `91eb45c`, `b7a833c`, `dc0aa89` introducono
 
 Il database pubblico delle segnalazioni, credenziali, file `.env`, dipendenze installate e build non sono inclusi. Lo snapshot OSM è quello reale già usato dal sito (1.158 elementi). Il progetto Sites mantiene la propria cronologia di deploy: un push GitHub non aggiorna il sito.
 
-## Anteprima senza pubblicazione della versione 4
+## Novità della versione 5
+
+- Analisi distinta di assenza/rimozione (`no_obstacle`) e descrizione da chiarire (`unclear`), con etichette italiane esplicite. L’assenza descritta non certifica l’accessibilità e non risolve segnalazioni esistenti. Il backend impedisce di pubblicarla come ostacolo; le descrizioni incerte richiedono chiarimenti o una categoria manuale.
+- Itinerari ordinati con fino a tre tappe intermedie. Il routing riceve tutti i punti, conserva le manovre reali e rifiuta risposte parziali; cambiamenti delle tappe cancellano le indicazioni obsolete.
+- Dettatura confermata dall’utente con ElevenLabs Scribe v2 e lettura con ElevenLabs Flash v2.5. Le credenziali rimangono nel Worker. L’audio e le trascrizioni non vengono salvati nel database; i limiti condivisi conservano soltanto timestamp. Le prove audio non avviano il GPS.
+
+## Verifiche attuali della versione 5
+
+Nel checkout sorgente Sites: TypeScript, build di produzione e **356 test automatici passati**. Tre chiamate reali dal Worker locale a Gemma hanno restituito `engine: gemma`, `published: false` e le categorie attese `no_obstacle`, `unclear`, `uneven_surface`; le segnalazioni sono rimaste invariate.
+
+Una richiesta reale a Valhalla con tre punti ha restituito circa 1.210 m, 76 coordinate e 17 manovre. Una verifica separata nel browser locale a 390 × 844 ha completato un itinerario con tre punti, mostrando 1,2 km e 15 indicazioni. Si tratta di verifiche del routing e dell’interfaccia, non di accessibilità fisica del percorso.
+
+Dopo la configurazione della chiave e dei relativi permessi, il Worker locale ha completato un roundtrip reale ElevenLabs: TTS HTTP 200, MP3 di 33.897 byte per `Tra cento metri, gira a destra.`, seguito da STT HTTP 200 con Scribe v2 e testo `Tra 100 metri gira a destra`. Nel browser locale è comparso lo stato di riproduzione ElevenLabs senza errori in console. L’audio sintetico verifica il collegamento fra servizi, non un microfono fisico o una passeggiata reale.
+
+Il deploy Sites v5 è riuscito. Nel browser pubblico a 390 × 844 è stato calcolato un itinerario a tre punti (Duomo su Via Roma, Via Santa Maria, Piazza dei Cavalieri), con 960 m e 11 indicazioni. Questa verifica è distinta dagli itinerari locali descritti sopra. Sul sito pubblico il pulsante Prova voce ElevenLabs ha mostrato lo stato Audio ElevenLabs in riproduzione; è stata salvata una schermata del browser mobile. Microfono, permessi e riproduzione su iPhone reale, oltre al comportamento GPS durante una passeggiata, restano da verificare. La guida richiede pagina e schermo attivi; non funziona come navigazione in background e non ricalcola automaticamente il percorso.
+
+L’applicazione nella radice non è stata modificata né sottoposta nuovamente ai test in questo round. I conteggi e i risultati storici sotto appartengono alle versioni indicate.
+
+## Anteprima senza pubblicazione introdotta nella versione 4
 
 Nel pannello **Segnala**, il pulsante **Analizza senza pubblicare** accetta una descrizione senza account, posizione o categoria manuale. Mostra **Anteprima · non pubblicata**, il motore effettivo e l'eventuale motivo del fallback. Una modifica del testo o l'uscita dal pannello elimina l'anteprima e annulla la richiesta pendente; risposte tardive non sostituiscono risultati più recenti.
 
@@ -30,13 +50,13 @@ Il nuovo `POST /api/analyze` non inserisce segnalazioni, non salva testo o inter
 
 È inoltre corretta un'incompatibilità con Cloudflare Workers: le chiamate Gemma usano `redirect: 'manual'` e rifiutano esplicitamente le risposte 3xx. `redirect: 'error'`, usato in precedenza, non era supportato nel runtime Worker. Le prove Node della versione 3 non coprivano quel runtime e non bastavano a dimostrare il funzionamento delle chiamate dal sito ospitato.
 
-## Verifiche attuali della versione 4
+## Verifiche storiche della versione 4
 
 Nel checkout sorgente Sites: TypeScript, build di produzione e **238 test automatici passati**. Una richiesta reale al Worker locale, tramite `POST /api/analyze`, ha restituito `engine: gemma`, categoria `uneven_surface` e `published: false` in circa 8 secondi. Anche il browser locale nel viewport 390 × 844 ha mostrato un'anteprima Gemma reale, dopo un precedente fallback transitorio. L'elenco locale delle segnalazioni è rimasto a zero prima e dopo le prove.
 
 I test coprono accesso anonimo, mancata persistenza dei contenuti, segnalazioni esistenti invariate, limite condiviso, cancellazione e risposte tardive, errore/riprova, fallback dichiarato e pubblicazione autenticata separata. Non sono state create segnalazioni pubbliche di prova. Il deploy Sites v4 è riuscito. Sul sito pubblico, una prova dal browser a 390 × 844 senza accesso né posizione ha mostrato un risultato Gemma reale per `Non ci sono gradini. Il problema è una buca profonda.`: categoria `Superficie irregolare`, ostacolo `buca profonda` e intestazione `Anteprima · non pubblicata`. Sono prove limitate di integrazione, non una garanzia di disponibilità o accuratezza generale del modello.
 
-L'applicazione nella radice non è stata modificata né sottoposta di nuovo ai test in questo round. I conteggi storici qui sotto restano separati dai 238 test cloud attuali.
+L'applicazione nella radice non è stata modificata né sottoposta di nuovo ai test in questo round. Questi 238 test cloud appartengono alla versione 4 e restano distinti dai 356 test della versione 5 e dai conteggi precedenti.
 
 ## Migliorie Gemma della versione 3
 

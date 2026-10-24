@@ -1,4 +1,4 @@
-import type { Certainty, FeatureKind, ReportCategory, Severity, VerificationStatus } from '../../shared/types.ts';
+import type { Certainty, FeatureKind, InterpretationCategory, ReportCategory, Severity, VerificationStatus } from '../../shared/types.ts';
 
 export const CATEGORY_LABEL: Record<ReportCategory, string> = {
   steps: 'Scale o gradini',
@@ -8,6 +8,12 @@ export const CATEGORY_LABEL: Record<ReportCategory, string> = {
   slope: 'Pendenza problematica',
   crossing: 'Attraversamento difficoltoso',
   other: 'Altro ostacolo',
+};
+
+export const INTERPRETATION_LABEL: Record<InterpretationCategory, string> = {
+  ...CATEGORY_LABEL,
+  no_obstacle: 'Nessun ostacolo segnalato',
+  unclear: 'Descrizione da chiarire',
 };
 
 export const STATUS_LABEL: Record<VerificationStatus, string> = {

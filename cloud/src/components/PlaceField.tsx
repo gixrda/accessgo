@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { GeocodeResult } from '../../shared/types.ts';
 import { api } from '../api.ts';
+import { DictationButton } from './DictationButton.tsx';
 import { Icon } from './Icon.tsx';
 import { dismissKeyboard } from '../lib/formViewport.ts';
 
 type Place = { lat: number; lng: number; label: string };
 interface Props {
-  letter: 'A' | 'B'; label: string; value: Place | null; picking: boolean;
+  letter: string; label: string; value: Place | null; picking: boolean;
   onPick: () => void; onSet: (p: Place | null) => void; onLocate?: () => void; locating?: boolean;
 }
 
@@ -77,6 +78,8 @@ export function PlaceField(props: Props) {
             <button type="submit" className="btn btn--secondary btn--sm" disabled={busy || q.trim().length < 3}>{busy ? 'Cerco…' : 'Cerca'}</button>
           </form>
           <p className="help" id={`${id}-help`}>Nome del luogo o via e numero civico, a Pisa. Premi Cerca.</p>
+          <DictationButton value={q} disabled={busy} maxLength={200} label={`Detta ${props.label.toLowerCase()}`}
+            onTranscript={(text) => { clearSearch(); setQ(text.slice(0, 200)); }} />
           <div className="row">
             <button type="button" className={`btn btn--ghost btn--sm${props.picking ? ' is-active' : ''}`} aria-pressed={props.picking}
               onClick={() => { clearSearch(); props.onPick(); }}>

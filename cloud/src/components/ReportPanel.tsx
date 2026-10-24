@@ -3,6 +3,7 @@ import type { ReportDraft } from '../hooks/useReportDraft.ts';
 import { useReportAnalysis } from '../hooks/useReportAnalysis.ts';
 import { PanelActions } from './PanelActions.tsx';
 import { CATEGORY_LABEL } from '../lib/labels.ts';
+import { DictationButton } from './DictationButton.tsx';
 import { Icon } from './Icon.tsx';
 import { Interpretation } from './DetailPanel.tsx';
 import type { PickMode } from './MapView.tsx';
@@ -24,6 +25,9 @@ export function ReportPanel(p: Props) {
   const analysis = useReportAnalysis(description);
   const tooShort = description.trim().length < 10;
   const requiresSignIn = Boolean(p.status?.reportRequiresSignIn && !p.status.reportSignedIn);
+  const noObstacle = analysis.interpretation?.category === 'no_obstacle';
+  const needsClarification = analysis.interpretation?.category === 'unclear' && !category;
+  const publicationBlocked = noObstacle || needsClarification;
 
   if (created) {
     return (
@@ -55,7 +59,7 @@ export function ReportPanel(p: Props) {
       </p>}
       <form id="report-form" className="report-form" onSubmit={(event) => {
         event.preventDefault();
-        if (p.status && !requiresSignIn && !analysis.isPending()) void p.draft.submit();
+        if (p.status && !requiresSignIn && !analysis.isPending() && !publicationBlocked) void p.draft.submit();
       }} noValidate>
         <fieldset className="field">
           <legend className="field__label"><span className="step">1</span> Posizione esatta</legend>
@@ -84,6 +88,9 @@ export function ReportPanel(p: Props) {
             onFocus={() => p.setPickMode(null)} onChange={(e) => { analysis.reset(); setDescription(e.target.value); }}
             placeholder="Es. C'è un gradino alto davanti all'ingresso e non si passa con la sedia a rotelle."
             aria-describedby="desc-help" aria-invalid={error !== null && tooShort} />
+          <DictationButton value={description} disabled={submitting || analysis.analysing || description.length >= 1000}
+            maxLength={Math.max(0, 1000 - description.length - (description ? 1 : 0))} label="Detta il problema"
+            onTranscript={(text) => { p.setPickMode(null); analysis.reset(); setDescription(`${description}${description ? ' ' : ''}${text}`.slice(0, 1000)); }} />
           <p id="desc-help" className="field__help">{aiLabel} <span className="muted">{description.length}/1000</span></p>
         </div>
 
@@ -122,6 +129,8 @@ export function ReportPanel(p: Props) {
           </select>
         </div>
 
+        {noObstacle && <p className="msg" role="status">Questo testo non verrà pubblicato come ostacolo. Puoi continuare a provare l’analisi oppure descrivere un problema attuale.</p>}
+        {needsClarification && <p className="msg" role="status">Prima di pubblicare, chiarisci il problema nel testo oppure scegli una categoria.</p>}
         {error && <p className="msg msg--error" role="alert">{error}</p>}
       </form>
       <PanelActions target={p.actionsTarget}>
@@ -132,7 +141,7 @@ export function ReportPanel(p: Props) {
               saveReportDraftForSignIn({ point, description, category });
             }}>Accedi per inviare</a>
           <p className="field__help">La bozza rimane in questa scheda se il browser consente il salvataggio locale.</p>
-        </> : <button type="submit" form="report-form" className="btn btn--accent btn--block" disabled={submitting || analysis.analysing || !point || tooShort || !p.status}>
+        </> : <button type="submit" form="report-form" className="btn btn--accent btn--block" disabled={submitting || analysis.analysing || publicationBlocked || !point || tooShort || !p.status}>
           {submitting ? 'Invio e interpretazione…' : 'Invia segnalazione'}
         </button>}
         {!p.status && <p className="field__help">Accesso al servizio non disponibile. Ricarica la pagina per riprovare.</p>}

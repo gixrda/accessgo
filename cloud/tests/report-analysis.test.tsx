@@ -33,7 +33,7 @@ const secondInterpretation: Interpretation = {
   summary: 'Una vettura ostruisce il marciapiede.', missing_info: [],
 };
 const savedReport: Report = {
-  id: 'report-published-deliberately', ...point, description, category: interpretation.category,
+  id: 'report-published-deliberately', ...point, description, category: 'uneven_surface',
   categorySource: 'interpretation', source: 'user_report', status: 'unverified',
   createdAt: '2026-10-24T10:00:00Z', interpretation,
 };
@@ -200,6 +200,41 @@ describe('analysis-only report flow in the actual App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Segnala', exact: true }));
     expect(textInput().value).toBe(description);
     expect(screen.queryByRole('heading', { name: 'Anteprima · non pubblicata' })).toBeNull();
+    expectUnpublished();
+  });
+
+  it('shows absence truthfully and blocks publication even when a manual obstacle category is selected', async () => {
+    vi.mocked(api.status).mockResolvedValue({ routing: 'valhalla', ai: 'gemma-google', admin: false, reportRequiresSignIn: true, reportSignedIn: true });
+    vi.mocked(api.analyzeReport).mockResolvedValue(preview({ ...interpretation, category: 'no_obstacle', obstacle: null, summary: 'Il testo dichiara che non ci sono più gradini.', missing_info: [] }));
+    await openReport();
+    enterText('Non ci sono più gradini.');
+    fireEvent.click(screen.getByRole('button', { name: 'Scegli sulla mappa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seleziona punto di prova' }));
+    fireEvent.change(screen.getByRole('combobox', { name: /Categoria/ }), { target: { value: 'steps' } });
+    await act(async () => fireEvent.click(analyzeButton()));
+    expect(screen.getByText('Nessun ostacolo segnalato', { exact: false })).toBeTruthy();
+    expect(screen.getByText(/Non conferma l’accessibilità della strada/)).toBeTruthy();
+    expect(screen.queryByText('Ostacolo', { exact: true })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Invia segnalazione' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.submit(document.getElementById('report-form')!);
+    expectUnpublished();
+  });
+
+  it('asks for clarification instead of labelling an unclear report as another obstacle', async () => {
+    vi.mocked(api.status).mockResolvedValue({ routing: 'valhalla', ai: 'gemma-google', admin: false, reportRequiresSignIn: true, reportSignedIn: true });
+    vi.mocked(api.analyzeReport).mockResolvedValue(preview({ ...interpretation, category: 'unclear', obstacle: null, summary: 'Il problema deve essere precisato.', missing_info: ['Quale ostacolo impedisce il passaggio?'] }));
+    await openReport();
+    enterText('Non riesco a passare qui.');
+    fireEvent.click(screen.getByRole('button', { name: 'Scegli sulla mappa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seleziona punto di prova' }));
+    await act(async () => fireEvent.click(analyzeButton()));
+    expect(screen.getByText('Descrizione da chiarire', { exact: false })).toBeTruthy();
+    expect(screen.getByText('Quale ostacolo impedisce il passaggio?')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Invia segnalazione' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.submit(document.getElementById('report-form')!);
+    expectUnpublished();
+    fireEvent.change(screen.getByRole('combobox', { name: /Categoria/ }), { target: { value: 'steps' } });
+    expect((screen.getByRole('button', { name: 'Invia segnalazione' }) as HTMLButtonElement).disabled).toBe(false);
     expectUnpublished();
   });
 });

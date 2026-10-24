@@ -28,7 +28,7 @@ describe('conservative report rules', () => {
     'Hanno rimosso il gradino.',
     'Non ci sono più gradini.',
   ])('does not turn resolved or absent obstacles into current barriers: %s', (input) => {
-    expect(parse(input)).toMatchObject({ category: 'other', obstacle: null, severity: 'unknown', summary: input });
+    expect(parse(input)).toMatchObject({ category: 'no_obstacle', obstacle: null, severity: 'unknown', summary: input });
   });
 
   it.each([
@@ -45,8 +45,8 @@ describe('conservative report rules', () => {
 
   it('asks for category confirmation for multiple current obstacle types', () => {
     const input = 'Ci sono un gradino e una buca profonda.';
-    expect(parse(input)).toMatchObject({ category: 'other', obstacle: null, severity: 'unknown', summary: input, note: expect.stringContaining('controlla manualmente') });
-    expect(parse(input).missing_info).toContain('Conferma manuale del tipo di ostacolo attuale');
+    expect(parse(input)).toMatchObject({ category: 'unclear', obstacle: null, severity: 'unknown', summary: input, note: expect.stringContaining('controlla manualmente') });
+    expect(parse(input).missing_info).toContain('Descrivi l’ostacolo attuale e indica qual è il problema principale');
   });
 
   it('preserves the original report without inventing a summary, location, or severity', () => {
@@ -58,7 +58,21 @@ describe('conservative report rules', () => {
   });
 
   it('retains unknown category when the report has no recognised physical obstacle', () => {
-    expect(parse('Non riesco a passare qui.')).toMatchObject({ category: 'other', obstacle: null, severity: 'unknown' });
+    expect(parse('Non riesco a passare qui.')).toMatchObject({ category: 'unclear', obstacle: null, severity: 'unknown' });
     expect(parse('Un gradino di 15 cm e un altro gradino.').missing_info).toContain(HEIGHT);
+  });
+
+  it.each(['Non ci sono ostacoli.', 'Il passaggio è libero.', 'There are no obstacles.', 'Non vedo ostacoli.'])('separates explicit absence from uncertainty: %s', (input) => {
+    expect(parse(input)).toMatchObject({ category: 'no_obstacle', obstacle: null, severity: 'unknown', missing_info: [] });
+  });
+
+  it.each(['Non so se ci sia un gradino.', 'Forse c’è una buca.', 'Maybe there is a step.', 'Non sono sicuro che ci sia un gradino.', 'Non è vero che il passaggio è libero.', 'Non ci sono gradini, ma non riesco a passare.', 'Il gradino è stato rimosso, ma il fondo è scivoloso.'])('does not infer absence or a specific obstacle from uncertainty: %s', (input) => {
+    expect(parse(input)).toMatchObject({ category: 'unclear', obstacle: null, severity: 'unknown' });
+    expect(parse(input).missing_info.length).toBeGreaterThan(0);
+  });
+
+  it('uses other only for an identifiable obstacle outside the named categories', () => {
+    expect(parse('Il portone è troppo pesante da aprire.')).toMatchObject({ category: 'other', obstacle: 'portone è troppo pesante' });
+    expect(parse('Non capisco cosa succede qui.').category).toBe('unclear');
   });
 });

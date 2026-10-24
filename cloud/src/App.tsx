@@ -17,7 +17,7 @@ import { dismissKeyboard, keepFocusedFieldVisible } from './lib/formViewport.ts'
 type Tab = 'route' | 'report';
 type SheetMode = 'peek' | 'half' | 'full';
 
-const PICK_PROMPT: Record<Exclude<PickMode, null>, string> = {
+const PICK_PROMPT: Record<'from' | 'to' | 'report', string> = {
   from: 'Tocca la mappa per scegliere la partenza',
   to: 'Tocca la mappa per scegliere la destinazione',
   report: "Tocca il punto esatto dell'ostacolo",
@@ -43,7 +43,7 @@ export default function App() {
   const activeView = useRef({ tab, pickMode, selection });
   activeView.current = { tab, pickMode, selection };
 
-  const { from, to, changeFrom, changeTo, route, footRoute, routeLoading, routeError, calculate } = useRoutePlanner({
+  const { from, to, via, changeFrom, changeTo, addVia, changeVia, removeVia, moveVia, reverse, route, footRoute, routeLoading, routeError, calculate } = useRoutePlanner({
     onFocus: (coords) => {
       // A slow route must not move the map while someone is placing a report pin.
       const view = activeView.current;
@@ -91,7 +91,7 @@ export default function App() {
   const analysis = useMemo(() => route ? analyzeRoute(route.coords, features, reports) : null, [route, features, reports]);
   const footAnalysis = useMemo(() => footRoute ? analyzeRoute(footRoute.coords, features, reports) : null, [footRoute, features, reports]);
 
-  useEffect(() => { setSelection(null); }, [from, to]);
+  useEffect(() => { setSelection(null); }, [from, to, via]);
 
   const keyboardEditing = viewport.keyboardOpen && !pickMode;
   const selectedOutside = mapScope === 'route' && selectionIsOutsideRoute(selection, analysis);
@@ -106,6 +106,7 @@ export default function App() {
     const label = `Punto sulla mappa (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`;
     if (pickMode === 'from') changeFrom({ ...p, label });
     if (pickMode === 'to') changeTo({ ...p, label });
+    if (pickMode?.startsWith('via:')) changeVia(pickMode.slice(4), { ...p, label });
     if (pickMode === 'report') setReportPoint(p);
     setPickModeRaw(null);
     setGeoError(null);
@@ -208,7 +209,7 @@ export default function App() {
             {selection ? (
               <DetailPanel selection={selection} status={status} onClose={() => setSelection(null)} onUpdated={upsertReport} />
             ) : tab === 'route' ? (
-              <RoutePanel from={from} to={to} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
+              <RoutePanel onNavigationPosition={([lat, lng]) => setUserPos({ lat, lng })} from={from} to={to} via={via} onAddVia={addVia} onChangeVia={changeVia} onRemoveVia={removeVia} onMoveVia={moveVia} onReverse={reverse} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} onCalculate={() => {
                   dismissKeyboard(); setSelection(null); setSheetMode('half'); void calculate();
                 }} loading={routeLoading} error={routeError}
@@ -225,7 +226,7 @@ export default function App() {
         </aside>
 
         <div className="map-area">
-          <MapView features={features} reports={reports} layers={layers} scope={mapScope} analysis={analysis} route={route} from={from} to={to}
+          <MapView features={features} reports={reports} layers={layers} scope={mapScope} analysis={analysis} route={route} from={from} to={to} via={via}
             compareRoute={route?.mode === 'wheelchair' && showFoot ? footRoute : null}
             reportPoint={reportPoint} userPos={userPos} pickMode={pickMode} selection={selection} focus={focus}
             onPick={onPick} onSelect={select} />
@@ -237,7 +238,7 @@ export default function App() {
           </div>}
           {pickMode && (
             <div className="pickbar" role="status">
-              <span>{PICK_PROMPT[pickMode]}</span>
+              <span>{pickMode.startsWith('via:') ? `Tocca la mappa per scegliere la tappa ${via.findIndex((stop) => stop.id === pickMode.slice(4)) + 1}` : PICK_PROMPT[pickMode as keyof typeof PICK_PROMPT]}</span>
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setPickModeRaw(null); setSheetMode('half'); }}>Annulla</button>
             </div>
           )}

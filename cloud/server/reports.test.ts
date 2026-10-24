@@ -72,6 +72,51 @@ describe('durable reports', () => {
     expect(await store.all()).toHaveLength(0);
   });
 
+  it('never publishes absence or removal, even with a manually supplied category, or resolves an existing report', async () => {
+    const store = createReportStore(database.db);
+    const existing = await store.create(input, {}, 'a');
+    for (const description of ['Non ci sono più gradini.', 'Il gradino è stato rimosso ieri; ora il passaggio è libero.']) {
+      for (const category of [undefined, 'steps']) {
+        await expect(store.create({ ...input, description, category }, {}, 'b')).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/non segnala un ostacolo attuale/) });
+      }
+    }
+    expect(await store.all()).toEqual([existing]);
+    expect(existing.status).toBe('unverified');
+  });
+
+  it('requires clarification or an explicit obstacle category before publishing an unclear report', async () => {
+    const store = createReportStore(database.db);
+    const description = 'Non riesco a passare qui.';
+    await expect(store.create({ ...input, description }, {}, 'a')).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/Descrivi meglio/) });
+    expect(await store.all()).toHaveLength(0);
+    const saved = await store.create({ ...input, description, category: 'steps' }, {}, 'a');
+    expect(saved).toMatchObject({ category: 'steps', categorySource: 'user', status: 'unverified', interpretation: { category: 'unclear' } });
+  });
+
+  it('applies the no-obstacle guard to an actual model-shaped result, not just fallback classification', async () => {
+    const description = 'Non ci sono più gradini.';
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({
+      category: 'no_obstacle', evidence: description, summary: 'I gradini descritti non sono più presenti.',
+      obstacle: null, severity: 'unknown', missing_info: [],
+    }) }] } }] })));
+    await expect(createReportStore(database.db).create({ ...input, description, category: 'steps' }, { GEMINI_API_KEY: 'test-key' }, 'a')).rejects.toMatchObject({ status: 400 });
+    expect(database.sqlite.prepare('SELECT COUNT(*) AS n FROM reports').get()?.n).toBe(0);
+  });
+
+  it('rejects analysis-only categories as manual public marker categories', async () => {
+    for (const category of ['no_obstacle', 'unclear']) {
+      await expect(createReportStore(database.db).create({ ...input, category }, {}, 'a')).rejects.toMatchObject({ status: 400, message: 'Categoria non valida.' });
+    }
+  });
+
+  it('reads old stored other interpretations without migration or reinterpretation', async () => {
+    const store = createReportStore(database.db);
+    const saved = await store.create(input, {}, 'a');
+    const legacy = { ...saved, category: 'other', interpretation: { ...saved.interpretation, category: 'other', obstacle: null } };
+    database.sqlite.prepare('UPDATE reports SET payload = ? WHERE id = ?').run(JSON.stringify(legacy), saved.id);
+    expect(await store.all()).toEqual([legacy]);
+  });
+
   it('updates moderation status durably with a timestamp and validates missing IDs', async () => {
     const store = createReportStore(database.db);
     const saved = await store.create(input, {}, 'a');

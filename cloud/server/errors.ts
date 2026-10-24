@@ -7,6 +7,10 @@ export class HttpError extends Error {
   }
 }
 
-export type Env = Record<string, string | undefined>;
+export type Env = Record<string, string | undefined> & {
+  ELEVENLABS_API_KEY?: string;
+  ELEVENLABS_VOICE_ID?: string;
+  ELEVENLABS_TTS_MODEL?: string;
+};
 
 export const USER_AGENT = 'AccessGo/0.2 (+https://accessgo-pisa-marco.xyxzwb.chatgpt.site)';

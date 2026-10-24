@@ -392,3 +392,27 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* Ordered stops and voice controls */
+.via-stop { border-left: 3px solid var(--line); padding-left: 12px; margin-block: 14px; }
+.via-stop__actions { flex-wrap: wrap; gap: 4px; }
+.via-stop__actions .btn { flex: 0 1 auto; }
+.add-stop { margin-block: 8px 16px; }
+.endpoint:not(.endpoint--A) { background: #fff; color: var(--brand); border: 2px solid var(--brand); }
+
+.dictation { margin-block: 6px 10px; }
+.dictation__button { min-height: 44px; padding: 6px 10px; font-size: .88rem; }
+.dictation__hint { font-size: .76rem; margin-top: 3px; line-height: 1.4; }
+.voice-navigation { margin-block: 18px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--primary-tint); }
+.voice-navigation h3 { font-size: 1.05rem; margin-bottom: 8px; }
+.voice-navigation .hint { font-size: .8rem; line-height: 1.45; }
+.voice-navigation__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-block: 12px; }
+.voice-navigation__actions .btn { min-height: 44px; flex: 1 1 140px; font-size: .86rem; }
+.voice-navigation__status { font-size: .9rem; margin-block: 8px; }
+.voice-navigation__next { background: var(--panel); border-radius: 8px; padding: 12px; margin-block: 10px; }
+.voice-navigation__next p { margin-block: 8px; }
+.voice-navigation details { margin-block: 10px; }
+.voice-navigation summary { cursor: pointer; padding-block: 8px; font-weight: 700; }
+.voice-navigation ol { margin: 0; padding-left: 24px; }
+.voice-navigation li { margin-block: 12px; font-size: .9rem; overflow-wrap: anywhere; }
+.voice-navigation li .btn { min-height: 44px; margin-top: 4px; font-size: .8rem; }

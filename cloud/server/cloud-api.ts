@@ -5,6 +5,7 @@ import { HttpError, type Env } from './errors.ts';
 import { createGeocoder } from './geocoding.ts';
 import { createReportStore } from './reports.ts';
 import { getFootRoute, getRoute } from './routing.ts';
+import { synthesizeSpeech, transcribeAudio, voiceStatus } from './elevenlabs.ts';
 
 export interface CloudApiOptions {
   env: Env;
@@ -75,6 +76,18 @@ export function createCloudApi({ env, db, osm, getUserId }: CloudApiOptions) {
     const path = url.pathname;
     const method = req.method;
     try {
+      if (method === 'GET' && path === '/api/voice/status') return send(200, voiceStatus(env));
+      if (method === 'POST' && path === '/api/voice/transcribe') {
+        requireSameOrigin(req, true);
+        return send(200, await transcribeAudio(req, env, db));
+      }
+      if (method === 'POST' && path === '/api/voice/speak') {
+        requireSameOrigin(req, true);
+        const audio = await synthesizeSpeech(await readJsonBody(req), env, db);
+        return new Response(audio as BodyInit, { headers: {
+          'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        } });
+      }
       if (method === 'GET' && path === '/api/status') {
         const ai = aiProvider(env);
         return send(200, {
@@ -110,15 +123,18 @@ export function createCloudApi({ env, db, osm, getUserId }: CloudApiOptions) {
       }
       if (method === 'POST' && path === '/api/route') {
         requireSameOrigin(req, false);
-        const { from, to, profile = 'wheelchair' } = (await readJsonBody(req) ?? {}) as {
-          from?: { lat?: unknown; lng?: unknown }; to?: { lat?: unknown; lng?: unknown }; profile?: unknown;
+        const { from, to, via = [], profile = 'wheelchair' } = (await readJsonBody(req) ?? {}) as {
+          from?: { lat?: unknown; lng?: unknown }; to?: { lat?: unknown; lng?: unknown }; via?: unknown; profile?: unknown;
         };
         if (!from || !to || !inPisa(from.lat, from.lng) || !inPisa(to.lat, to.lng)) {
           throw new HttpError(400, 'Partenza e destinazione devono trovarsi a Pisa.');
         }
+        if (!Array.isArray(via) || via.length > 3 || via.some((point) => !point || typeof point !== 'object' || !inPisa(point.lat, point.lng))) {
+          throw new HttpError(400, 'Seleziona fino a 3 tappe intermedie valide a Pisa, senza lasciare tappe vuote.');
+        }
         if (profile !== 'wheelchair' && profile !== 'foot') throw new HttpError(400, 'Profilo di percorso non valido.');
         const [a, b] = [from as { lat: number; lng: number }, to as { lat: number; lng: number }];
-        return send(200, profile === 'foot' ? await getFootRoute(a, b) : await getRoute(a, b, env));
+        return send(200, profile === 'foot' ? await getFootRoute(a, b, via) : await getRoute(a, b, env, via));
       }
       if (method === 'GET' && path === '/api/geocode') {
         const geocode = createGeocoder({ env, db: database(), features: osm.features });

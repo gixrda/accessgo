@@ -51,10 +51,17 @@ export function createReportStore(db: D1Database) {
     await checkSubmission(userId, text, latitude, longitude, Date.now());
     const interpretation = await interpret(text, env);
     const userCategory = category ? category as ReportCategory : null;
+    if (interpretation.category === 'no_obstacle') {
+      throw new HttpError(400, 'Il testo non segnala un ostacolo attuale. Non verrà pubblicato sulla mappa; nessuna segnalazione esistente viene risolta automaticamente.');
+    }
+    const reportCategory = userCategory ?? interpretation.category;
+    if (reportCategory === 'unclear') {
+      throw new HttpError(400, 'Descrivi meglio l’ostacolo oppure scegli manualmente la categoria prima di pubblicare.');
+    }
     const now = Date.now();
     const report: Report = {
       id: crypto.randomUUID(), lat: latitude, lng: longitude, description: text,
-      category: userCategory ?? interpretation.category,
+      category: reportCategory,
       categorySource: userCategory ? 'user' : 'interpretation',
       createdAt: new Date(now).toISOString(),
       status: 'unverified', source: 'user_report', interpretation,

@@ -38,6 +38,9 @@ export const REPORT_CATEGORIES = [
   'steps', 'kerb', 'obstructed_sidewalk', 'uneven_surface', 'slope', 'crossing', 'other',
 ] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+/** Analysis can describe absence or uncertainty; public obstacle markers cannot. */
+export const INTERPRETATION_CATEGORIES = [...REPORT_CATEGORIES, 'no_obstacle', 'unclear'] as const;
+export type InterpretationCategory = (typeof INTERPRETATION_CATEGORIES)[number];
 
 export const VERIFICATION_STATUSES = ['unverified', 'verified', 'resolved'] as const;
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
@@ -45,7 +48,7 @@ export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 export type Severity = 'low' | 'medium' | 'high' | 'unknown';
 
 export interface Interpretation {
-  category: ReportCategory;
+  category: InterpretationCategory;
   obstacle: string | null;
   summary: string;
   severity: Severity;
@@ -72,6 +75,8 @@ export interface Report {
 }
 
 export interface RouteResult {
+  maneuvers?: import('./navigation.ts').RouteManeuver[];
+  waypoints?: LatLngTuple[];
   /**
    * wheelchair = profilo per sedia a rotelle (ORS o Valhalla);
    * foot_fallback = percorso pedonale mostrato perché i servizi per sedia a rotelle non rispondono (NON valutato);

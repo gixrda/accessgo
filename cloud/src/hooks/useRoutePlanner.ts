@@ -3,10 +3,15 @@ import type { LatLngTuple, RouteResult } from '../../shared/types.ts';
 import { api } from '../api.ts';
 
 export type Place = { lat: number; lng: number; label: string };
+export type ViaStop = { id: string; place: Place | null };
+export const MAX_VIA_STOPS = 3;
 
 export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) => void }) {
   const [from, setFrom] = useState<Place | null>(null);
   const [to, setTo] = useState<Place | null>(null);
+  const [via, setVia] = useState<ViaStop[]>([]);
+  const viaRef = useRef<ViaStop[]>([]);
+  const nextStopId = useRef(0);
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [footRoute, setFootRoute] = useState<RouteResult | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -38,6 +43,37 @@ export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) 
     invalidate();
   }, [invalidate]);
 
+  const changeViaStops = useCallback((stops: ViaStop[]) => {
+    viaRef.current = stops;
+    setVia(stops);
+    invalidate();
+  }, [invalidate]);
+  const addVia = useCallback(() => {
+    if (viaRef.current.length >= MAX_VIA_STOPS) return;
+    changeViaStops([...viaRef.current, { id: String(++nextStopId.current), place: null }]);
+  }, [changeViaStops]);
+  const changeVia = useCallback((id: string, place: Place | null) => {
+    if (!viaRef.current.some((stop) => stop.id === id)) return;
+    changeViaStops(viaRef.current.map((stop) => stop.id === id ? { ...stop, place } : stop));
+  }, [changeViaStops]);
+  const removeVia = useCallback((id: string) => {
+    changeViaStops(viaRef.current.filter((stop) => stop.id !== id));
+  }, [changeViaStops]);
+  const moveVia = useCallback((id: string, direction: -1 | 1) => {
+    const stops = [...viaRef.current];
+    const index = stops.findIndex((stop) => stop.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= stops.length) return;
+    [stops[index], stops[target]] = [stops[target], stops[index]];
+    changeViaStops(stops);
+  }, [changeViaStops]);
+  const reverse = useCallback(() => {
+    const current = endpoints.current;
+    endpoints.current = { from: current.to, to: current.from };
+    setFrom(current.to); setTo(current.from);
+    changeViaStops([...viaRef.current].reverse());
+  }, [changeViaStops]);
+
   useEffect(() => () => {
     sequence.current += 1;
     controller.current?.abort();
@@ -45,7 +81,8 @@ export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) 
 
   const calculate = useCallback(async () => {
     const { from: start, to: end } = endpoints.current;
-    if (!start || !end) return;
+    if (!start || !end || viaRef.current.some((stop) => !stop.place)) return;
+    const stops = viaRef.current.map((stop) => stop.place!);
     invalidate();
     const requestId = sequence.current;
     const abort = new AbortController();
@@ -56,8 +93,8 @@ export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) 
     // The comparison is optional. Show the main route without waiting for a slower service.
     let mainSucceeded = false;
     const comparison: { value: RouteResult | null } = { value: null };
-    const main = api.route(start, end, 'wheelchair', abort.signal);
-    void api.route(start, end, 'foot', abort.signal).then((result) => {
+    const main = api.route(start, end, 'wheelchair', abort.signal, stops);
+    void api.route(start, end, 'foot', abort.signal, stops).then((result) => {
       if (!isCurrent()) return;
       comparison.value = result;
       if (mainSucceeded) setFootRoute(result);
@@ -80,5 +117,5 @@ export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) 
     }
   }, [invalidate, onFocus]);
 
-  return { from, to, changeFrom, changeTo, route, footRoute, routeLoading, routeError, calculate };
+  return { from, to, via, changeFrom, changeTo, addVia, changeVia, removeVia, moveVia, reverse, route, footRoute, routeLoading, routeError, calculate };
 }
