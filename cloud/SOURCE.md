@@ -1,3 +1,17 @@
+# Aggiornamento v7 · deviazioni per ostacoli e rischi visibili
+
+- Sorgente Sites: `38d44a5c9daf48d2a083534c76adbcda48df3e94`.
+- Versione 7 pubblicata il 24 ottobre 2026 alle 13:45:15 UTC; revisione ambiente 2 invariata.
+- Sito: https://accessogo.xyxzwb.chatgpt.site/
+- Base GitHub: `07ac24e`, dopo il merge della PR #5 e gli aggiornamenti del team. Prosegue il ramo `codex/gemma-api-reliability`; nessun push diretto o merge su `main`.
+- Questo aggiornamento modifica soltanto `cloud/`; l'applicazione nella radice resta separata.
+
+Il server carica gli ostacoli OSM espliciti e le segnalazioni verificate ammesse dal database, esclude le geometrie nel provider e ricontrolla ogni deviazione. Massimo due tentativi; nessun ripiego pedonale per le richieste pubbliche in sedia a rotelle. Gli ostacoli non aggirati o i controlli incompleti impediscono l'avvio della guida vocale. I rischi precedono le statistiche, la linea bloccata è rossa tratteggiata. La sezione v7 del README descrive criteri e limiti spaziali.
+
+Verifiche: 515 test, TypeScript e build passati; regressioni UI finali 13/13. Due casi Valhalla reali: deviazione di 1452.232 m che evita sei record OSM, e NoRoute dopo esclusioni correttamente bloccato. Browser locale: Piazza Dante → Torre di Pisa, circa800 m/12 min, un ostacolo evitato; interfaccia390×844 senza errori console. Nessun report di prova pubblicato. I test software e API non certificano l'accessibilità sul posto; iPhone fisico e prove con utenti restano da svolgere.
+
+---
+
 # Aggiornamento v6 · ricerca e navigazione vocale
 
 - Sorgente Sites: `ef1248ee9bd503181e3cfe7de7cc8d45cb33d1ce`.

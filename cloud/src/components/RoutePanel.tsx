@@ -6,6 +6,7 @@ import { CATEGORY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import { Icon } from './Icon.tsx';
 import { PanelActions } from './PanelActions.tsx';
 import { NavigationPanel } from './NavigationPanel.tsx';
+import { RouteRiskBanner } from './RouteRiskBanner.tsx';
 import { VoiceRoutePanel } from './VoiceRoutePanel.tsx';
 import { MAX_VIA_STOPS, type Itinerary, type ViaStop } from '../hooks/useRoutePlanner.ts';
 import { PlaceField } from './PlaceField.tsx';
@@ -146,16 +147,16 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
 
       <ol className="ladder" aria-label="Affidabilità delle informazioni">
         <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Percorso calcolato</li>
-        <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Confrontato con OpenStreetMap e segnalazioni</li>
+        <li className={`ladder__step ${route.safety?.status === 'unavailable' ? 'is-missing' : 'is-done'}`}><span aria-hidden="true">{route.safety?.status === 'unavailable' ? '✕' : '✓'}</span> {route.safety?.status === 'unavailable' ? 'Controllo degli ostacoli incompleto' : 'Confrontato con i dati disponibili'}</li>
         <li className="ladder__step is-missing"><span aria-hidden="true">✕</span> Non verificato sul posto</li>
       </ol>
 
       <div className="coverage">
         <div className="coverage__head">
-          <span>Dati su superficie, pendenza o larghezza</span>
+          <span>Copertura delle informazioni OSM</span>
           <strong>{pct}% del percorso</strong>
         </div>
-        <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Copertura dei dati di accessibilità">
+        <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Copertura delle informazioni OSM">
           <span style={{ width: `${pct}%` }} />
         </div>
         {pct < 50 && (
@@ -181,6 +182,7 @@ export function RoutePanel(p: Props) {
   return (
     <section aria-labelledby="route-title" className="panel">
       <h2 id="route-title" className="panel__title">Trova un percorso</h2>
+      {p.route && <RouteRiskBanner route={p.route} analysis={p.analysis} />}
       {p.onApplyItinerary && <VoiceRoutePanel key={p.voiceResetKey} externalRequest={p.voiceRequest} onRequestConsumed={p.onVoiceRequestConsumed} compact onApply={p.onApplyItinerary} disabled={p.loading} />}
       {p.loading && <p className="msg" role="status">Calcolo il percorso…</p>}
       {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}

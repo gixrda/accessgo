@@ -9,8 +9,18 @@ Italian accessible-navigation prototype. This edition retains the mobile layout,
 - Reports are stored in Cloudflare D1. New reports are always unverified. A secret moderator token is required to change status; moderation stays disabled until configured.
 - No local `.env`, existing report database, API key or GitHub credential is copied to the cloud.
 - Real OSM snapshot: 1,158 roads and facilities, acquired 2026-10-24. The coverage boundary is shown on the map. Missing accessibility tags never mean verified safe.
-- External routing is Valhalla wheelchair by default. OpenRouteService can be enabled with a server secret. A pedestrian fallback is explicitly labelled; routes are not field-verified.
+- External routing is Valhalla wheelchair by default. OpenRouteService can be enabled with a server secret. Public wheelchair requests fail closed when wheelchair routing is unavailable; ordinary walking is only a separately labelled comparison. Routes are not field-verified.
 - AI defaults to honest rule-based interpretation. Configure a real Gemma API key to use Gemma; no claim of AI analysis is made without a model call.
+
+## Obstacle-aware routing (v7)
+
+The server reads its OSM snapshot and current report store for every wheelchair request. Explicit path `wheelchair=no`, steps, and raised kerbs participate in avoidance; accessible wheelchair/ramp tags exempt steps/kerbs. OSM tags are mapped evidence, not on-site verification. Community reports participate only when a moderator has set `verified` and the author manually chose `steps` or `obstructed_sidewalk`. Unverified/resolved reports and AI severity never create routing exclusions. Other reports remain visible risk information. Moderation remains disabled unless an admin secret is configured.
+
+When the initial route intersects these blockers, AccessGo submits actual Valhalla `exclude_polygons` (or ORS `avoid_polygons`) and rechecks the full returned geometry against all blockers. At most two detours are requested. Every original stop is checked too, including stops the provider snapped away from a blocker. Exclusion zones are conservative spatial approximations: 7 m for OSM and 10 m for reports, with 2 m extra provider padding; nearby parallel paths or different levels can be overexcluded. This is not a sidewalk-level topology or entrance-accessibility guarantee.
+
+Unresolved blockers, ignored exclusions, failed detours, or unavailable report checks disable voice guidance. Such routes are red/dashed and inspection-only; a failure to find an alternative does not prove no physical alternative exists. Risk status appears before route statistics, and a new route resets the panel scroll to it. Data coverage is explicitly not a safety score. No obstacle data is written during route calculation.
+
+Validation: 515 automated tests passed, including real SQLite report-status reads, exclusion payloads, ignored exclusions, new blockers on detours, no-route responses, snapped stops, and blocked voice controls. Live Valhalla with the real OSM snapshot returned a 1,452.232 m detour avoiding six mapped kerb records for `[43.7163,10.397] → [43.7225,10.397]`; a second request correctly surfaced `NoRoute` after exclusions. Local browser flow **Piazza Dante → Torre di Pisa** returned about 800 m / 12 min and avoided one mapped obstacle. These validate software/provider behavior, not real-world traversability. Physical iPhone walking and wheelchair-user field trials remain outstanding.
 
 ## Search service limits
 

@@ -74,7 +74,21 @@ export interface Report {
   interpretation: Interpretation;
 }
 
+export interface RouteObstacle {
+  id: string;
+  source: 'osm' | 'verified_report';
+  label: string;
+  coordinate: LatLngTuple;
+}
+export interface RouteSafety {
+  status: 'checked' | 'rerouted' | 'blocked' | 'unavailable';
+  message: string;
+  blockedBy: RouteObstacle[];
+  avoided: RouteObstacle[];
+  reportsChecked: boolean;
+}
 export interface RouteResult {
+  safety?: RouteSafety;
   maneuvers?: import('./navigation.ts').RouteManeuver[];
   waypoints?: LatLngTuple[];
   /**

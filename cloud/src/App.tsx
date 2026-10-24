@@ -74,7 +74,7 @@ export default function App() {
 
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
-  }, [tab, selection]);
+  }, [tab, selection, route]);
 
   useEffect(() => {
     const body = bodyRef.current;
@@ -164,6 +164,8 @@ export default function App() {
 
   function upsertReport(r: Report) {
     setReports((rs) => rs.some((x) => x.id === r.id) ? rs.map((x) => x.id === r.id ? r : x) : [...rs, r]);
+    // A moderator changing an obstacle invalidates the route checked against its old status.
+    if (route && (r.status === 'verified' || r.status === 'resolved')) changeFrom(from);
     if (selection?.type === 'report' && selection.report.id === r.id) setSelection({ type: 'report', report: r });
   }
 
@@ -267,7 +269,7 @@ export default function App() {
           {!pickMode && <button type="button" className="btn btn--secondary map-locate" disabled={locating}
             onClick={() => void locate('from')} aria-label="Localizza sulla mappa">{locating ? 'Localizzo…' : 'La mia posizione'}</button>}
           {!pickMode && <div className="map-scope-note" role="status">
-            <span>{mapScope === 'all' ? 'Esplora tutta l’area' : route ? 'Ostacoli vicini al percorso attuale' : selection ? 'Elemento selezionato · nessun percorso attivo' : 'Calcola un percorso per vedere gli ostacoli vicini'}</span>
+            <span>{route?.safety?.status === 'blocked' ? 'Tracciato da esaminare · ostacoli non aggirati' : route?.safety?.status === 'unavailable' ? 'Tracciato da esaminare · controllo incompleto' : mapScope === 'all' ? 'Esplora tutta l’area' : route ? 'Ostacoli vicini al percorso attuale' : selection ? 'Elemento selezionato · nessun percorso attivo' : 'Calcola un percorso per vedere gli ostacoli vicini'}</span>
             {selectedOutside && <span className="map-scope-note__selection"> + elemento selezionato fuori filtro</span>}
           </div>}
           {pickMode && (

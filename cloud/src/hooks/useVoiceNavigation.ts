@@ -3,7 +3,7 @@ import { useElevenLabsVoice } from './useElevenLabsVoice.ts';
 import { distanceMeters } from '../../shared/navigation.ts';
 import type { LatLngTuple } from '../../shared/types.ts';
 import {
-  distanceInstruction, maneuverInstruction, navigationGeometry, nextManeuver, projectNavigationPosition, usableManeuvers,
+  distanceInstruction, maneuverInstruction, navigationBlocked, navigationGeometry, nextManeuver, projectNavigationPosition, usableManeuvers,
   type NavigationProgress, type NavigationRoute,
 } from '../lib/navigation.ts';
 
@@ -101,7 +101,7 @@ export function useVoiceNavigation(route: NavigationRoute, onPosition?: (coordin
   }, [active, cancelSpeech]);
 
   function start() {
-    if (running.current || !geometry || !maneuvers.length || !voice.supported || !voice.configured
+    if (navigationBlocked(route) || running.current || !geometry || !maneuvers.length || !voice.supported || !voice.configured
       || !window.isSecureContext || !navigator.geolocation) return;
     clear();
     const id = epoch.current;
@@ -191,6 +191,7 @@ export function useVoiceNavigation(route: NavigationRoute, onPosition?: (coordin
   }
 
   function preview(index?: number) {
+    if (navigationBlocked(route)) return;
     const selected = typeof index === 'number' && Number.isInteger(index) ? maneuvers[index] : null;
     const next = selected ? { maneuver: selected, distanceM: 0, index: index! }
       : nextManeuver(maneuvers, distanceM, completed.current) ?? (maneuvers.length ? { maneuver: maneuvers[0], distanceM: 0, index: 0 } : null);
@@ -205,6 +206,6 @@ export function useVoiceNavigation(route: NavigationRoute, onPosition?: (coordin
     readyPosition, distanceM, remainingM: Math.max(0, (geometry?.totalM ?? 0) - distanceM),
     upcoming, upcomingInstruction: upcomingIndex !== null ? maneuverInstruction(maneuvers, upcomingIndex) : null,
     upcomingDistanceM: upcoming ? Math.max(0, upcoming.routeDistanceM - distanceM) : null,
-    start, stop: () => stop(), preview, testVoice: () => speak('Questa è la voce italiana di AccessGo, generata da ElevenLabs. La prova audio non avvia la navigazione.'),
+    start, stop: () => stop(), preview, testVoice: () => { if (!navigationBlocked(route)) speak('Questa è la voce italiana di AccessGo, generata da ElevenLabs. La prova audio non avvia la navigazione.'); },
   };
 }

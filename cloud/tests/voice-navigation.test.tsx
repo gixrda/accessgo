@@ -86,6 +86,16 @@ describe('conservative route position projection', () => {
 });
 
 describe('foreground Italian speech navigation', () => {
+  it.each(['blocked', 'unavailable'] as const)('does not speak previews or start GPS for a %s route', (status) => {
+    const value: NavigationRoute = { ...route, safety: { status, message: 'Route blocked fixture', blockedBy: [], avoided: [], reportsChecked: true } };
+    expect(usableManeuvers(value)).toEqual([]);
+    const { result } = renderHook(() => useVoiceNavigation(value));
+    act(() => { result.current.testVoice(); result.current.preview(); result.current.preview(1); result.current.start(); });
+    expect(watchPosition).not.toHaveBeenCalled();
+    expect(speak).not.toHaveBeenCalled();
+    expect(result.current.available).toBe(false);
+  });
+
   it('uses explicit speech previews without GPS and no spontaneous speech on mount', () => {
     const { result } = renderHook(() => useVoiceNavigation(route));
     expect(watchPosition).not.toHaveBeenCalled();
