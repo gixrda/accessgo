@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LatLngTuple } from '../shared/types.ts';
 import { getRoute } from '../server/routing.ts';
 import { classifyEdges, decodePolyline6, NOT_VERIFIABLE } from '../server/safety.ts';
+import { RULES } from '../shared/rules.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -142,14 +143,14 @@ describe('routing sicuro: casi limite', () => {
 describe('ostacoli bloccanti segnalati', () => {
   const OBST = { lat: 43.715, lng: 10.401 };
 
-  it('esclude un\'area di ~10 m attorno all\'ostacolo e lo dichiara', async () => {
+  it('esclude una piccola area attorno all\'ostacolo e lo dichiara solo se il nuovo percorso non ci passa', async () => {
     const f = mockValhalla([candidate(0, 400, [footway(400)])]);
     const r = await getRoute(A, B, {}, [OBST]);
     const body = JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(body.exclude_polygons).toHaveLength(1);
     const ring = body.exclude_polygons[0] as [number, number][];
     expect(ring[0]).toEqual(ring[4]); // anello chiuso, in [lng, lat]
-    expect((ring[2][1] - ring[0][1]) * 110_540).toBeCloseTo(20, 0); // 10 m per lato dal punto
+    expect((ring[2][1] - ring[0][1]) * 110_540).toBeCloseTo(2 * RULES.AVOID_HALF_M, 0);
     expect(r).toMatchObject({ avoidedBlocking: 1 });
     expect(r.avoidFailed).toBeUndefined();
   });
@@ -169,6 +170,27 @@ describe('ostacoli bloccanti segnalati', () => {
     expect(bodies.map((b) => Boolean(b.exclude_polygons))).toEqual([true, false]);
     expect(r).toMatchObject({ avoidFailed: true, distanceM: 300 });
     expect(r.avoidedBlocking).toBeUndefined();
+  });
+});
+
+describe('verifica dopo il ricalcolo', () => {
+  it('5. se il nuovo percorso passa ancora dall\'ostacolo non lo dichiara evitato', async () => {
+    // il servizio restituisce un percorso che attraversa comunque il punto dell'ostacolo
+    const through = candidate(0, 300, [footway(300)]);
+    mockValhalla([through]);
+    const onRoute = { lat: through.coords[1][0], lng: through.coords[1][1] };
+    const r = await getRoute(A, B, {}, [onRoute]);
+    expect(r).toMatchObject({ avoidFailed: true, avoidedBlocking: 0 });
+  });
+
+  it('7. più ostacoli: tutti esclusi e verificati uno per uno', async () => {
+    const c = candidate(0, 300, [footway(300)]);
+    const f = mockValhalla([c]);
+    const away = { lat: 43.75, lng: 10.45 };
+    const r = await getRoute(A, B, {}, [away, { ...away, lat: 43.751 }, { lat: c.coords[1][0], lng: c.coords[1][1] }]);
+    const body = JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.exclude_polygons).toHaveLength(3);
+    expect(r).toMatchObject({ avoidedBlocking: 2, avoidFailed: true });
   });
 });
 

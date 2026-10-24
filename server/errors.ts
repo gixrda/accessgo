@@ -9,4 +9,4 @@ export class HttpError extends Error {
 
 export type Env = Record<string, string | undefined>;
 
-export const USER_AGENT = 'AccessGo-hackathon/0.1 (prototipo accessibilità Pisa)';
+export const USER_AGENT = 'OpenWay-hackathon/0.1 (prototipo accessibilità Pisa)';

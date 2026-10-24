@@ -5,8 +5,10 @@ import {
   NOT_SURE, REPORT_CATEGORIES, VERIFICATION_STATUSES, inPisa,
   type Interpretation, type Report, type ReportCategory, type ReportDraft, type VerificationStatus,
 } from '../shared/types.ts';
+import { routingImpact } from '../shared/rules.ts';
 import { interpret, type Photo } from './ai.ts';
 import { HttpError, type Env } from './errors.ts';
+import { snapToNetwork } from './routing.ts';
 
 const MAX_PHOTO_BYTES = 1_500_000;
 const DRAFT_TTL_MS = 30 * 60_000;
@@ -98,12 +100,16 @@ export function createReportStore(file: string) {
 
     const userCategory = category ? category as ReportCategory : null;
     const userBlocking = blocking === true || blocking === false || blocking === null;
+    const finalBlocking = userBlocking ? blocking as boolean | null : interpretation.blocking;
+    const finalCategory = userCategory ?? interpretation.category;
+    // Le coordinate vengono solo dalla mappa; il punto agganciato alla rete serve per escludere il tratto giusto.
+    const snap = await snapToNetwork({ lat: lat as number, lng: lng as number });
     const report: Report = {
       id: randomUUID(),
       lat: lat as number,
       lng: lng as number,
       description: text,
-      category: userCategory ?? interpretation.category,
+      category: finalCategory,
       categorySource: userCategory ? 'user' : 'interpretation',
       createdAt: new Date().toISOString(),
       status: 'unverified', // sempre: né l'invio né l'AI verificano una segnalazione
@@ -111,8 +117,10 @@ export function createReportStore(file: string) {
       interpretation,
       hasPhoto: Boolean(fromDraft?.photo),
       // La risposta di chi segnala ("si riesce a passare?") prevale sulla proposta dell'analisi.
-      blocking: userBlocking ? blocking as boolean | null : interpretation.blocking,
+      blocking: finalBlocking,
       blockingSource: userBlocking ? 'user' : 'interpretation',
+      snap: snap && Number.isFinite(snap.distanceM) ? snap : null,
+      impact: routingImpact(finalCategory, finalBlocking, snap ? snap.distanceM : null),
       ...(followUp ? { followUp } : {}),
     };
     if (fromDraft?.photo) {

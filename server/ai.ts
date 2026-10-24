@@ -46,7 +46,7 @@ export async function interpret(description: string, env: Env, photo?: Photo): P
 }
 
 export function buildPrompt(description: string, hasPhoto: boolean): string {
-  return `Sei l'assistente di AccessGo, che raccoglie segnalazioni di barriere architettoniche per persone in sedia a rotelle a Pisa.
+  return `Sei l'assistente di OpenWay, che raccoglie segnalazioni di barriere architettoniche per persone in sedia a rotelle a Pisa.
 Leggi la segnalazione${hasPhoto ? ' e osserva la foto allegata' : ''} e rispondi SOLO con un oggetto JSON, senza testo aggiuntivo, con queste chiavi:
 - "category": una tra ${REPORT_CATEGORIES.map((c) => `"${c}"`).join(', ')}
   (steps=scale o gradini, kerb=cordolo, obstructed_sidewalk=marciapiede ostruito, uneven_surface=superficie irregolare,

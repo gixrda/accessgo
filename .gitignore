@@ -4,3 +4,4 @@ dist
 server/data/reports.json
 server/data/photos
 *.tsbuildinfo
+img/

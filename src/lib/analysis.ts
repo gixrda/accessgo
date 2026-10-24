@@ -1,3 +1,6 @@
+import { distToLine, projector, type XY } from '../../shared/geo.ts';
+import { RULES } from '../../shared/rules.ts';
+import { nearM, obstaclePoint } from './reroute.ts';
 import type { LatLngTuple, OsmFeature, Report } from '../../shared/types.ts';
 
 export interface RouteAnalysis {
@@ -18,32 +21,11 @@ export type RouteObstacle =
   | { type: 'feature'; feature: OsmFeature; alongM: number }
   | { type: 'report'; report: Report; alongM: number };
 
-type XY = [number, number];
 
 const POINT_M = 5; // distanza massima di un nodo (cordolo, barriera…) dal percorso
 const LINE_M = 4; // distanza massima tra percorso e una via mappata per considerarla "percorsa"
 const REPORT_M = 15; // le posizioni scelte dagli utenti sono meno precise
 const STEP_M = 5; // passo di campionamento del percorso
-
-/** Proiezione equirettangolare locale in metri: sufficiente per un'area di pochi km. */
-function projector(lat0: number) {
-  const kx = Math.cos((lat0 * Math.PI) / 180) * 111_320;
-  return ([lat, lng]: LatLngTuple): XY => [lng * kx, lat * 110_540];
-}
-
-function distToSegment(p: XY, a: XY, b: XY): number {
-  const dx = b[0] - a[0], dy = b[1] - a[1];
-  const len2 = dx * dx + dy * dy;
-  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
-  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
-}
-
-function distToLine(p: XY, line: XY[]): number {
-  if (line.length === 1) return Math.hypot(p[0] - line[0][0], p[1] - line[0][1]);
-  let min = Infinity;
-  for (let i = 1; i < line.length; i++) min = Math.min(min, distToSegment(p, line[i - 1], line[i]));
-  return min;
-}
 
 function lineLength(line: XY[]): number {
   let len = 0;
@@ -131,8 +113,11 @@ export function analyzeRoute(route: LatLngTuple[], features: OsmFeature[], repor
     else if (f.certainty === 'positive_info') result.positive.push(f);
     else if (f.geometry.type === 'point') result.unknown.push(f);
   }
-  result.reports = reports.filter((r) => r.status !== 'resolved' && distToLine(xy([r.lat, r.lng]), routeXY) <= REPORT_M);
-  for (const r of result.reports) alongM[r.id] = alongRoute(xy([r.lat, r.lng]), routeXY);
+  // Con il punto agganciato alla rete basta una soglia stretta; senza, si tollera l'imprecisione del tocco sulla mappa.
+  const reportXY = (r: Report) => xy(obstaclePoint(r));
+  result.reports = reports.filter((r) => r.status !== 'resolved'
+    && distToLine(reportXY(r), routeXY) <= nearM(r));
+  for (const r of result.reports) alongM[r.id] = alongRoute(reportXY(r), routeXY);
   result.coverage = covered.filter(Boolean).length / samples.length;
   return { ...result, alongM };
 }

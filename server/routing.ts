@@ -1,5 +1,7 @@
 import type { LatLngTuple, RouteResult } from '../shared/types.ts';
 import { HttpError, USER_AGENT, type Env } from './errors.ts';
+import { distanceToRoute } from '../shared/geo.ts';
+import { RULES } from '../shared/rules.ts';
 import { chooseSafest } from './safety.ts';
 
 type Point = { lat: number; lng: number };
@@ -22,7 +24,10 @@ export async function getRoute(from: Point, to: Point, env: Env, avoid: Point[] 
   try {
     const r = await wheelchairRoute(from, to, env, avoid);
     // Il ripiego pedonale (OSRM) non sa escludere aree: in quel caso non dichiariamo nulla di evitato.
-    return r.mode === 'foot_fallback' ? r : { ...r, avoidedBlocking: avoid.length };
+    if (r.mode === 'foot_fallback') return r;
+    // Non ci si fida del servizio: si controlla sulla geometria che il percorso non passi più dagli ostacoli.
+    const still = avoid.filter((p) => distanceToRoute(r.coords, [p.lat, p.lng]) <= RULES.ON_EDGE_M).length;
+    return { ...r, avoidedBlocking: avoid.length - still, ...(still ? { avoidFailed: true } : {}) };
   } catch (e) {
     if (e instanceof HttpError && (e.status === 404 || e.status === 422)) {
       return { ...(await wheelchairRoute(from, to, env, [])), avoidFailed: true };
@@ -31,11 +36,10 @@ export async function getRoute(from: Point, to: Point, env: Env, avoid: Point[] 
   }
 }
 
-// Area esclusa attorno a una segnalazione bloccante: quadrato di ~10 m per lato dal punto, in [lng, lat].
-const AVOID_M = 10;
+// Area esclusa attorno al punto dell'ostacolo agganciato alla rete: quadrato di semilato RULES.AVOID_HALF_M, in [lng, lat].
 export function avoidSquare({ lat, lng }: Point): [number, number][] {
-  const dLat = AVOID_M / 110_540;
-  const dLng = AVOID_M / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const dLat = RULES.AVOID_HALF_M / 110_540;
+  const dLng = RULES.AVOID_HALF_M / (111_320 * Math.cos((lat * Math.PI) / 180));
   return [[lng - dLng, lat - dLat], [lng + dLng, lat - dLat], [lng + dLng, lat + dLat], [lng - dLng, lat + dLat], [lng - dLng, lat - dLat]];
 }
 
@@ -64,6 +68,27 @@ async function wheelchairRoute(from: Point, to: Point, env: Env, avoid: Point[])
   if (unsafe) throw unsafe;
   const foot = await chooseSafest([await osrmFoot(from, to)], true);
   return { ...foot, notice: `${reason} Ti mostriamo un normale percorso a piedi.` };
+}
+
+/**
+ * Aggancia un punto alla rete percorribile in sedia a rotelle (Valhalla /locate): punto sulla via più vicina e distanza.
+ * null se il servizio non risponde: in quel caso si usa il punto scelto da chi segnala.
+ */
+export async function snapToNetwork(p: Point): Promise<{ lat: number; lng: number; distanceM: number } | null> {
+  try {
+    const res = await fetch('https://valhalla1.openstreetmap.de/locate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
+      body: JSON.stringify({ locations: [{ lat: p.lat, lon: p.lng }], costing: 'pedestrian', costing_options: { pedestrian: { type: 'wheelchair' } }, verbose: true }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json() as { edges?: { correlated_lat: number; correlated_lon: number; distance: number }[] }[];
+    const e = json[0]?.edges?.reduce((a, b) => (b.distance < a.distance ? b : a));
+    return e ? { lat: e.correlated_lat, lng: e.correlated_lon, distanceM: Math.round(e.distance * 10) / 10 } : { lat: p.lat, lng: p.lng, distanceM: Infinity };
+  } catch {
+    return null;
+  }
 }
 
 /** Percorso pedonale standard per il confronto: stesso motore (Valhalla) del profilo sedia a rotelle, OSRM come riserva. */

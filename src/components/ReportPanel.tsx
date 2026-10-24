@@ -2,6 +2,8 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { NOT_SURE, REPORT_CATEGORIES, type Report, type ReportCategory, type ReportDraft, type ServerStatus } from '../../shared/types.ts';
 import { api } from '../api.ts';
 import { CATEGORY_LABEL } from '../lib/labels.ts';
+import type { Recalc } from '../lib/reroute.ts';
+import { RECALC_TEXT } from './RoutePanel.tsx';
 import { toJpegDataUrl } from '../lib/photo.ts';
 import { Icon } from './Icon.tsx';
 import { Interpretation } from './DetailPanel.tsx';
@@ -19,6 +21,8 @@ interface Props {
   onShow: (r: Report) => void;
   /** C'è un percorso calcolato: una segnalazione bloccante lo farà ricalcolare */
   hasRoute: boolean;
+  /** Esito del ricalcolo del percorso dopo l'invio */
+  recalc: Recalc | null;
   onShowRoute: () => void;
 }
 
@@ -40,8 +44,6 @@ export function ReportPanel(p: Props) {
   const [busy, setBusy] = useState<'analyze' | 'send' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Report | null>(null);
-  // Deciso all'invio: subito dopo, il percorso viene ricalcolato e per un attimo non c'è.
-  const [rerouted, setRerouted] = useState(false);
   const tooShort = description.trim().length < 10;
   
   // Cambiare testo o foto annulla la lettura: quella salvata deve corrispondere a ciò che si invia.
@@ -85,7 +87,6 @@ export function ReportPanel(p: Props) {
         ...(answer ? { answer } : {}),
       });
       setCreated(r);
-      setRerouted(r.blocking === true && p.hasRoute);
       p.onCreated(r);
       p.setPoint(null);
       setDescriptionRaw(''); setPhotoRaw(null); resetDraft();
@@ -95,25 +96,24 @@ export function ReportPanel(p: Props) {
   }
 
   if (created) {
+    // Con un percorso attivo l'esito arriva dal ricalcolo; senza, dipende solo dalle regole sull'ostacolo.
+    const outcome = p.hasRoute && p.recalc ? RECALC_TEXT[p.recalc.kind] : null;
+    const text = outcome ? `${outcome.title}. ${outcome.text}`
+      : created.impact === 'avoid' ? 'Da ora i percorsi calcolati lo eviteranno.'
+      : created.impact === 'unlocated' ? RECALC_TEXT.unlocated.text
+      : `È sulla mappa con il simbolo «${CATEGORY_LABEL[created.category]}». Non blocca il passaggio.`;
     return (
       <section className="panel" aria-labelledby="done-title">
-        <div className="verdict verdict--calm" role="status">
+        <div className="verdict verdict--calm" role="status" aria-live="polite">
           <Icon name="check" size={22} />
           <div>
             <h2 id="done-title" className="verdict__title">Grazie, segnalazione inviata</h2>
-            <p className="verdict__text">
-              {created.blocking === true
-                ? (rerouted
-                  ? 'Blocca il passaggio: abbiamo ricalcolato il tuo percorso per evitarlo.'
-                  : 'Blocca il passaggio: da ora i percorsi calcolati lo eviteranno.')
-                : `È sulla mappa con il simbolo «${CATEGORY_LABEL[created.category]}».`}
-              {' '}Resta da controllare sul posto.
-            </p>
+            <p className="verdict__text">{text} Resta da controllare sul posto.</p>
           </div>
         </div>
         <div className="row">
-          {rerouted && <button type="button" className="btn btn--primary" onClick={p.onShowRoute}>Vedi il nuovo percorso</button>}
-          <button type="button" className={`btn ${rerouted ? 'btn--ghost' : 'btn--primary'}`} onClick={() => p.onShow(created)}>Vedi sulla mappa</button>
+          {p.hasRoute && <button type="button" className="btn btn--primary" onClick={p.onShowRoute}>Vedi il percorso</button>}
+          <button type="button" className={`btn ${p.hasRoute ? 'btn--ghost' : 'btn--primary'}`} onClick={() => p.onShow(created)}>Vedi sulla mappa</button>
           <button type="button" className="btn btn--ghost" onClick={() => setCreated(null)}>Nuova segnalazione</button>
         </div>
       </section>

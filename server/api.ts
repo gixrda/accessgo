@@ -88,14 +88,15 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
         if (profile !== 'wheelchair' && profile !== 'foot') throw new HttpError(400, 'Profilo di percorso non valido.');
         const [a, b] = [from as { lat: number; lng: number }, to as { lat: number; lng: number }];
         if (profile === 'foot') return send(res, 200, await getFootRoute(a, b));
-        // Segnalazioni bloccanti non risolte nella zona del percorso (riquadro partenza-arrivo allargato di ~1 km).
+        // Segnalazioni da evitare (regole in shared/rules.ts) non risolte, nella zona del percorso (riquadro allargato di ~1 km).
         const pad = 0.01;
         const [s, n] = [Math.min(a.lat, b.lat) - pad, Math.max(a.lat, b.lat) + pad];
         const [w, e] = [Math.min(a.lng, b.lng) - pad, Math.max(a.lng, b.lng) + pad];
         const avoid = (await reports.all())
-          .filter((r) => r.blocking === true && r.status !== 'resolved' && r.lat >= s && r.lat <= n && r.lng >= w && r.lng <= e)
+          .filter((r) => r.impact === 'avoid' && r.status !== 'resolved' && r.lat >= s && r.lat <= n && r.lng >= w && r.lng <= e)
           .slice(-20)
-          .map((r) => ({ lat: r.lat, lng: r.lng }));
+          // impact 'avoid' implica un aggancio entro la soglia (o nessun aggancio disponibile)
+          .map((r) => (r.snap ? { lat: r.snap.lat, lng: r.snap.lng } : { lat: r.lat, lng: r.lng }));
         return send(res, 200, await getRoute(a, b, env, avoid));
       }
       if (method === 'GET' && path === '/api/geocode') return send(res, 200, await geocode(url.searchParams.get('q') ?? ''));

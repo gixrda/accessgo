@@ -46,7 +46,7 @@ export function Interpretation({ interpretation: i, category, followUp }: {
 }
 
 function ReportDetail({ report, status, onUpdated }: { report: Report; status: ServerStatus | null; onUpdated: (r: Report) => void }) {
-  const [token, setToken] = useState(() => { try { return sessionStorage.getItem('accessgo-admin') ?? ''; } catch { return ''; } });
+  const [token, setToken] = useState(() => { try { return sessionStorage.getItem('openway-admin') ?? ''; } catch { return ''; } });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +54,7 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
     setBusy(true); setError(null);
     try {
       onUpdated(await api.setStatus(report.id, s, token));
-      try { sessionStorage.setItem('accessgo-admin', token); } catch { /* storage non disponibile: nessun problema */ }
+      try { sessionStorage.setItem('openway-admin', token); } catch { /* storage non disponibile: nessun problema */ }
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
 

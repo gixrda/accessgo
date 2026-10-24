@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     {
       // Le API girano nello stesso processo di Vite: un solo comando (npm run dev) per la demo.
-      name: 'accessgo-api',
+      name: 'openway-api',
       configureServer(server) {
         const api = createApi({
           env: { ...process.env, ...loadEnv(mode, root, '') }, // le chiavi restano lato server, senza prefisso VITE_

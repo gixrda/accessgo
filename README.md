@@ -1,14 +1,20 @@
-# AccessGo — MVP
+# OpenWay — Freedom to move
+
+*(il progetto si chiamava AccessGo: il documento di partenza `AccessGo.md` e il repository GitHub conservano il vecchio nome)*
 
 Web app che aiuta le persone con disabilità motorie a orientarsi a Pisa (zona universitaria): calcola un percorso, lo confronta con i dati di accessibilità di OpenStreetMap e con le segnalazioni degli utenti, e dice chiaramente **cosa si sa, cosa è solo probabile e cosa manca**.
 
-> L'assenza di dati sugli ostacoli non significa che un percorso sia accessibile. AccessGo non dichiara mai "accessibile" un tratto senza dati, e nessun percorso è verificato sul posto.
+> L'assenza di dati sugli ostacoli non significa che un percorso sia accessibile. OpenWay non dichiara mai "accessibile" un tratto senza dati, e nessun percorso è verificato sul posto.
 
 ## Edizione pubblica mobile
 
 La versione pubblicata su **[accessogo.xyxzwb.chatgpt.site](https://accessogo.xyxzwb.chatgpt.site/)** è disponibile nella cartella **[cloud/](cloud/README.md)**, con istruzioni e dipendenze proprie. Include layout mobile, filtro degli ostacoli lungo il percorso, ricerca indirizzi e correzioni della tastiera di Safari su iPhone.
 
 L'app Node/Vite nella radice è quella su cui lavora il team e contiene le funzioni più recenti (routing sicuro, ostacoli bloccanti evitati, Gemma 4). L'edizione cloud è uno snapshot separato, precedente, con backend Workers/D1 e accesso ChatGPT per inviare segnalazioni: le due architetture non sono state fuse. Per avviare il sito pubblico in locale, seguire `cloud/README.md`; i comandi qui sotto avviano l'app del team. Una modifica su GitHub non ripubblica automaticamente il sito.
+
+## Interfaccia
+
+Mappa a tutto schermo (tile OpenStreetMap desaturate via CSS, così percorso e ostacoli sono gli unici elementi colorati) con pannelli flottanti in vetro satinato (`backdrop-filter`, con superficie piena se il browser non lo supporta o se è attiva "riduci trasparenza"). Tema chiaro e scuro automatici. Da lontano la mappa mostra solo ostacoli noti e segnalazioni; avvicinando compaiono le difficoltà minori. Su smartphone il pannello è un foglio in basso, i controlli (livelli, "dove sono") stanno a destra e il logo in alto a sinistra. Logo in `public/logo.png` (ritaglio di `img/logo_openway.png`, usato anche come icona iPhone). Design system in `src/styles.css` (variabili CSS: colori, vetro, raggi, spazi, tipografia Atkinson Hyperlegible Next).
 
 ## Avvio rapido
 
@@ -18,7 +24,10 @@ Requisiti: **Node.js ≥ 23.6** (il backend è TypeScript eseguito nativamente d
 npm install
 cp .env.example .env      # opzionale: senza chiavi il routing per sedia a rotelle funziona già (Valhalla, gratuito)
 npm run dev               # http://localhost:5173  (frontend + API nello stesso processo)
+npm run dev -- --host     # anche dal telefono sulla stessa rete Wi‑Fi: apri l'indirizzo "Network" stampato (es. http://172.20.10.2:5173)
 ```
+
+Dal telefono via `http://` funzionano mappa, percorsi e segnalazioni; **posizione GPS e microfono no**, perché i browser li concedono solo su `https://` o `localhost`. Per provarli su smartphone serve un hosting HTTPS (vedi l'edizione `cloud/`).
 
 Produzione / demo offline dal build:
 
@@ -34,7 +43,7 @@ npm start                 # http://localhost:8787
 | `npm run dev` | Vite + API (`/api/*` montate come middleware) |
 | `npm run build` | type-check (`tsc -b`) + build frontend in `dist/` |
 | `npm start` | server Node: API + `dist/` |
-| `npm test` | test Vitest (99 test: normalizzazione OSM, analisi e confronto percorsi, routing sicuro, assistente AI/fallback, API) |
+| `npm test` | test Vitest (118 test: normalizzazione OSM, analisi e confronto percorsi, routing sicuro, assistente AI/fallback, API) |
 | `npm run typecheck` | solo type-check |
 | `npm run check:ai` | controllo dal vivo di Gemma su segnalazioni di esempio (categoria, bloccante, gravità, manipolazione, foto); facoltativo: percorso di una foto JPEG |
 | `npm run fetch:osm` | riscarica lo snapshot OSM da Overpass (una richiesta, con mirror di riserva) |
@@ -62,13 +71,13 @@ Lo stato dei servizi è visibile nella barra in alto (desktop) e in ogni risulta
   1. **OpenRouteService** `wheelchair`, se è configurata la chiave gratuita;
   2. **Valhalla** `pedestrian` con `type: wheelchair` sull'istanza pubblica FOSSGIS (nessuna chiave): 4 km/h, solo fondi compatti o migliori, scale con penalità massima (usate solo se non c'è alternativa, e in quel caso segnalate come ostacolo noto). **Non conosce l'altezza dei cordoli**: l'interfaccia lo dice e mostra gli attraversamenti senza dati;
   3. solo se nessuno dei due risponde: percorso pedonale OSRM, **dichiarato come non calcolato per sedia a rotelle** e senza durata.
-  Se il servizio per sedia a rotelle risponde "nessun percorso", AccessGo non lo sostituisce con un percorso pedonale.
+  Se il servizio per sedia a rotelle risponde "nessun percorso", OpenWay non lo sostituisce con un percorso pedonale.
 - **Routing sicuro** (`server/safety.ts`, lato server): Valhalla calcola fino a 3 alternative; ognuna viene classificata tratto per tratto con `trace_attributes` (tipo d'uso, classe stradale, marciapiede da OSM):
   - *pedonale*: footway, pedonale, path, attraversamenti, `living_street`, ciclabili; *con marciapiede*: strade con `sidewalk=left/right/both`;
   - *carreggiata senza marciapiede mappato*: strade residenziali/di servizio senza marciapiede noto → **non verificabile**;
   - *strada principale senza marciapiede* (terziaria o superiore) o **scale** (profilo sedia a rotelle) → alternativa **scartata**.
   Si sceglie l'alternativa con meno carreggiata, accettando al massimo 2 m di deviazione per ogni metro evitato, e l'interfaccia spiega perché. Se resta carreggiata: *"Non è stato possibile trovare un percorso sufficientemente verificabile. Controlla la mappa prima di proseguire."* con i tratti elencati e evidenziati (alone ambra tratteggiato). Se tutte le alternative vanno scartate, nessun itinerario viene proposto (errore esplicito). I divieti di accesso (`foot=no`, `access=no`, autostrade) sono applicati dal router (profilo pedonale di Valhalla), non da un controllo nostro. Ignorati: il primo/ultimo tratto < 20 m (collegamento del punto cliccato alla rete) e frammenti < 3 m (rumore dell'aggancio).
-- **Ostacoli bloccanti segnalati**: l'analisi propone se la segnalazione **blocca il passaggio** ("non riesco a passare") e chi segnala conferma o corregge (*No, blocca il passaggio* / *Sì, con difficoltà* / *Non lo so*). Le segnalazioni bloccanti non risolte vengono **escluse dal calcolo** (area di ~10 m attorno al punto, `exclude_polygons` di Valhalla, `avoid_polygons` di ORS): dopo l'invio il percorso mostrato viene ricalcolato e il pannello dice "Evita 1 ostacolo segnalato come bloccante". Se nessun percorso lo evita, si calcola senza escluderlo e lo si dichiara. Le altre segnalazioni compaiono sulla mappa con l'icona della loro categoria; quelle bloccanti con il segnaposto rosso e il simbolo di divieto. Una segnalazione non è mai considerata verificata: viene evitata per prudenza.
+- **Segnalazioni che cambiano il percorso** (`shared/rules.ts`, `server/routing.ts`, `src/lib/reroute.ts`): l'analisi propone se la segnalazione **blocca il passaggio** e chi segnala conferma o corregge (*No, blocca il passaggio* / *Sì, con difficoltà* / *Non lo so*). Alla creazione il punto scelto sulla mappa viene **agganciato alla rete pedonale** (Valhalla `/locate`): se la via più vicina è oltre 15 m l'ostacolo è "non localizzato" e non entra nel calcolo. Regole esplicite per categoria: bloccante o `steps` → da evitare; "si passa" detto da chi segnala → mai una deviazione. Gli ostacoli da evitare sono esclusi dal calcolo con un'area di 5 m attorno al punto agganciato (`exclude_polygons` di Valhalla, `avoid_polygons` di ORS) e il server **verifica sulla geometria** che il nuovo percorso non passi più entro 3 m: solo allora dice "Evita N ostacoli". Dopo l'invio, se l'ostacolo è davvero sul percorso attivo (≤ 3 m dal punto agganciato) il percorso viene ricalcolato con partenza e arrivo invariati, scartando le risposte superate; stati mostrati: *ricalcolo in corso*, *Ostacolo rilevato: percorso aggiornato*, *nessun percorso alternativo*, *ricalcolo non riuscito* (con Riprova), *il percorso non cambia* (ostacolo su un'altra via o non bloccante), *ostacolo non localizzato*. Un ostacolo sul marciapiede non fa deviare chi passa sulla carreggiata parallela (4–10 m). Le segnalazioni restano "da controllare": vengono evitate per prudenza, non perché verificate. Scenari coperti dai test: sul percorso, su un'altra via vicina, segmento bloccato, categoria irrilevante, nessuna alternativa, errore del servizio, più ostacoli.
 - **Pannello del percorso essenziale**: (1) esito in una frase con icona ("3 punti di attenzione" / "Nessun ostacolo noto") e distanza/durata; (2) **"Lungo il percorso"**: un solo elenco numerato come sulla mappa con ostacoli noti, segnalazioni e tratti in strada senza marciapiede, ciascuno spiegato in parole semplici e con la distanza dalla partenza; (3) **"Più dettagli"** chiuso: tipo di strada, confronto con il percorso a piedi, difficoltà minori, fonti e limiti. Dopo il calcolo partenza e arrivo si riducono a una riga con *Modifica*, così l'esito resta visibile anche su smartphone.
 - **Confronto a piedi / sedia a rotelle**: lo stesso motore (Valhalla) calcola anche il percorso pedonale standard; tabella con distanza, ostacoli noti e possibili criticità di entrambi, ostacoli evitati e ostacoli presenti solo sul percorso per sedia a rotelle. Linea continua blu = sedia a rotelle, linea a puntini grigia = a piedi (disattivabile).
 - **Percorso**: partenza/destinazione da ricerca indirizzi (Nominatim, limitata a Pisa, 1 richiesta/s, nessun autocompletamento come da policy), click sulla mappa o posizione GPS.
@@ -106,6 +115,10 @@ API: `GET /api/status`, `GET /api/osm`, `GET|POST /api/reports`, `POST /api/repo
 - **OpenStreetMap** (© OpenStreetMap contributors, ODbL) via Overpass: snapshot del 24/10/2026 in `server/data/osm-pisa.json`, area 43.712–43.724 N, 10.393–10.410 E. 1158 feature: 55 ostacoli noti, 398 possibili criticità, 105 elementi favorevoli, 600 dati descrittivi. Nessun dato dimostrativo inventato.
 - Lo snapshot evita interrogazioni ripetute a Overpass e rende la demo indipendente dalla sua disponibilità.
 
+## Voce (ElevenLabs)
+
+La dettatura e la guida vocale con ElevenLabs sono nell'**edizione `cloud/`** (vedi [cloud/README.md](cloud/README.md), sezione "Voce con ElevenLabs"), pubblicata su https://accessogo.xyxzwb.chatgpt.site/. Verificata il 24/10/2026 sul sito pubblicato: sintesi (`/api/voice/speak` → `audio/mpeg`) e trascrizione di un audio italiano (`/api/voice/transcribe` → testo esatto). L'app principale in questa cartella **non ha ancora** comandi vocali.
+
 ## Percorsi per la demo
 
 Link con partenza e destinazione precompilate (`?from=lat,lng&to=lat,lng`, poi *Calcola percorso*). Verificati dal vivo il 24/10/2026; gli ostacoli sono quelli mappati in OpenStreetMap, **non verificati sul posto**: controllateli prima della demo.
@@ -135,6 +148,7 @@ Link con partenza e destinazione precompilate (`?from=lat,lng&to=lat,lng`, poi *
 - Solo le segnalazioni bloccanti modificano il calcolo del percorso (le altre compaiono nell'analisi e nell'elenco). Una segnalazione falsa o sbagliata può allungare un percorso finché un moderatore non la segna come risolta.
 - Persistenza su file JSON: adatta a un singolo server di demo, non a più istanze. Nessuna autenticazione utente né rate limiting.
 - La copertura considera anche la superficie delle carreggiate, che non descrive sempre il marciapiede.
-- La corrispondenza percorso ↔ ostacolo è geometrica (5 m per i nodi, sovrapposizione ≥ 15 m per le vie, 15 m per le segnalazioni): può includere elementi su un marciapiede parallelo molto vicino.
+- La corrispondenza percorso ↔ ostacolo OSM è geometrica (5 m per i nodi, sovrapposizione ≥ 15 m per le vie): può includere elementi su un marciapiede parallelo molto vicino. Per le segnalazioni si usa il punto agganciato alla rete (3 m) o, se l'aggancio non è disponibile, il punto toccato (15 m).
+- L'aggancio alla rete dipende dall'istanza pubblica Valhalla: se non risponde, la segnalazione viene salvata senza aggancio e usata con il punto toccato.
 - I marker OSM non sono nell'ordine di tabulazione (sarebbero centinaia): da tastiera si usano gli elenchi del pannello percorso. Le segnalazioni utenti sono raggiungibili da tastiera.
 - Dati PEBA del Comune e Wheelmap non integrati.

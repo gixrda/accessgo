@@ -26,5 +26,5 @@ createServer(async (req, res) => {
   res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream' });
   createReadStream(file).on('error', () => res.end('Esegui prima "npm run build".')).pipe(res);
 }).listen(Number(process.env.PORT) || 8787, () => {
-  console.log(`AccessGo su http://localhost:${Number(process.env.PORT) || 8787}`);
+  console.log(`OpenWay su http://localhost:${Number(process.env.PORT) || 8787}`);
 });

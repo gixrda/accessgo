@@ -13,12 +13,14 @@ let base: string;
 let dir: string;
 
 async function start(env: Env) {
-  dir = await mkdtemp(join(tmpdir(), 'accessgo-'));
+  dir = await mkdtemp(join(tmpdir(), 'openway-'));
   await writeFile(join(dir, 'osm.json'), JSON.stringify({ source: 'test', fetchedAt: '', bbox: [0, 0, 0, 0], features: [] }));
   const api = createApi({ env, reportsFile: join(dir, 'reports.json'), osmFile: join(dir, 'osm.json') });
   server = createServer((req, res) => { api(req, res).then((h) => { if (!h) { res.statusCode = 404; res.end(); } }); });
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  // Nessuna chiamata di rete reale nei test: i servizi esterni rispondono "non disponibile" salvo mock specifici.
+  mockExternal(() => new Response('', { status: 503 }));
 }
 
 /** Simula i servizi esterni; le chiamate al server di test passano al fetch reale. */
@@ -130,6 +132,40 @@ describe('API senza credenziali', () => {
     // il percorso a piedi di confronto non esclude nulla
     await post('/api/route', { from: PISA, to: PISA, profile: 'foot' });
     expect(routeBodies[1].exclude_polygons).toBeUndefined();
+  });
+
+  it('aggancia la segnalazione alla rete e decide l\'effetto sul percorso', async () => {
+    mockExternal((url) => url.endsWith('/locate')
+      ? Response.json([{ edges: [{ correlated_lat: 43.71755, correlated_lon: 10.40052, distance: 4.2 }, { correlated_lat: 43.7, correlated_lon: 10.4, distance: 9 }] }])
+      : new Response('', { status: 503 }));
+    const r = await (await post('/api/reports', { ...PISA, description: 'Scale all\'ingresso del palazzo' })).json();
+    expect(r).toMatchObject({ category: 'steps', impact: 'avoid', snap: { lat: 43.71755, lng: 10.40052, distanceM: 4.2 } });
+
+    mockExternal((url) => url.endsWith('/locate')
+      ? Response.json([{ edges: [{ correlated_lat: 43.7177, correlated_lon: 10.4009, distance: 31 }] }])
+      : new Response('', { status: 503 }));
+    const far = await (await post('/api/reports', { ...PISA, lat: PISA.lat + 0.0003, description: 'Transenne: non riesco a passare' })).json();
+    expect(far).toMatchObject({ impact: 'unlocated' });
+
+    const minor = await (await post('/api/reports', { ...PISA, lng: PISA.lng + 0.0004, description: 'Buca nel marciapiede, si passa' })).json();
+    expect(minor.impact).toBe('caution');
+  });
+
+  it('3. il routing esclude l\'area attorno al punto agganciato, non al punto toccato', async () => {
+    mockExternal((url) => url.endsWith('/locate')
+      ? Response.json([{ edges: [{ correlated_lat: 43.71760, correlated_lon: 10.40060, distance: 6 }] }])
+      : new Response('', { status: 503 }));
+    await post('/api/reports', { ...PISA, description: 'Cantiere: non riesco a passare' });
+    const bodies: Record<string, unknown>[] = [];
+    mockExternal((url, init) => {
+      if (url.endsWith('/route')) bodies.push(JSON.parse(init!.body as string));
+      return Response.json(OSRM_OK);
+    });
+    await post('/api/route', { from: PISA, to: { lat: 43.719, lng: 10.404 } });
+    const ring = (bodies[0].exclude_polygons as [number, number][][])[0];
+    const center = [(ring[0][0] + ring[2][0]) / 2, (ring[0][1] + ring[2][1]) / 2];
+    expect(center[0]).toBeCloseTo(10.4006, 5);
+    expect(center[1]).toBeCloseTo(43.7176, 5);
   });
 
   it('blocca il doppio invio accidentale', async () => {

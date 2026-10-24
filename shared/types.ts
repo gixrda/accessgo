@@ -81,6 +81,10 @@ export interface Report {
   /** Blocca il passaggio? Deciso da chi segnala o proposto dall'analisi. I percorsi evitano le segnalazioni bloccanti. */
   blocking: boolean | null;
   blockingSource: 'user' | 'interpretation';
+  /** Punto sulla rete pedonale più vicino al punto scelto (null se il servizio non ha risposto) */
+  snap: { lat: number; lng: number; distanceM: number } | null;
+  /** Effetto sul calcolo del percorso, secondo le regole in shared/rules.ts */
+  impact: 'avoid' | 'caution' | 'unlocated';
   /** Risposta di chi segnala alla domanda dell'assistente: dato fornito dall'utente, non dall'AI */
   followUp?: { question: string; answer: string };
 }
@@ -106,7 +110,7 @@ export interface RouteResult {
   safety?: RouteSafety;
   /** Segnalazioni bloccanti escluse dal calcolo (aree di ~10 m attorno al punto) */
   avoidedBlocking?: number;
-  /** true se non esiste un percorso che eviti le segnalazioni bloccanti: è stato calcolato senza escluderle */
+  /** true se il percorso non evita tutte le segnalazioni da evitare (verificato sulla geometria) */
   avoidFailed?: boolean;
 }
 

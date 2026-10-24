@@ -1,6 +1,6 @@
 import L from 'leaflet';
-import { useEffect, useMemo } from 'react';
-import { CircleMarker, MapContainer, Marker, Polyline, Rectangle, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { useEffect, useMemo, useState } from 'react';
+import { CircleMarker, MapContainer, Marker, Polyline, Rectangle, TileLayer, useMap, useMapEvents, ZoomControl } from 'react-leaflet';
 import { DEMO_BBOX, PISA_BOUNDS, type LatLngTuple, type OsmFeature, type Report, type RouteResult } from '../../shared/types.ts';
 import { CATEGORY_ICON, CATEGORY_LABEL, CERTAINTY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import type { RouteAlert } from '../lib/alerts.ts';
@@ -87,13 +87,40 @@ function FocusController({ focus }: { focus: Focus }) {
   return null;
 }
 
-function visible(f: OsmFeature, layers: Layers): boolean {
+// Da lontano si vedono solo ostacoli noti e segnalazioni; il resto compare avvicinando la mappa.
+const DETAIL_ZOOM = 17;
+
+function visible(f: OsmFeature, layers: Layers, zoom: number): boolean {
+  if (f.certainty === 'known_obstacle' && f.scope === 'path') return layers.known;
+  if (zoom < DETAIL_ZOOM) return false;
   if (f.scope === 'place') return layers.places;
-  if (f.certainty === 'known_obstacle') return layers.known;
   if (f.certainty === 'possible_issue') return layers.possible;
   if (f.certainty === 'positive_info') return layers.positive;
   return layers.info && f.geometry.type === 'point'; // le linee "info" servono solo al calcolo della copertura
 }
+
+function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  return null;
+}
+
+function useDarkMode(): boolean {
+  const query = '(prefers-color-scheme: dark)';
+  const [dark, setDark] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setDark(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return dark;
+}
+
+// Colori dei tracciati: il percorso è l'unico elemento blu sulla mappa desaturata.
+const PALETTE = {
+  light: { route: '#0a66d8', casing: '#ffffff', foot: '#3b4350', frame: '#475569', walk: '#ffffff' },
+  dark: { route: '#4c95ff', casing: '#0b0f14', foot: '#cbd5e1', frame: '#94a3b8', walk: '#0b0f14' },
+};
 
 export function MapView(p: Props) {
   // In modalità selezione, toccare un marker o una linea imposta il punto invece di aprirne il dettaglio.
@@ -102,7 +129,10 @@ export function MapView(p: Props) {
   });
   const selId = p.selection?.type === 'feature' ? p.selection.feature.id : p.selection?.report.id;
   // L'elemento selezionato resta visibile anche se il suo livello è nascosto.
-  const shown = useMemo(() => p.features.filter((f) => visible(f, p.layers) || f.id === selId), [p.features, p.layers, selId]);
+  const [zoom, setZoom] = useState(16);
+  const dark = useDarkMode();
+  const c = dark ? PALETTE.dark : PALETTE.light;
+  const shown = useMemo(() => p.features.filter((f) => visible(f, p.layers, zoom) || f.id === selId), [p.features, p.layers, zoom, selId]);
   const [s, w, n, e] = DEMO_BBOX;
   const [ps, pw, pn, pe] = PISA_BOUNDS;
 
@@ -114,23 +144,29 @@ export function MapView(p: Props) {
       maxZoom={19}
       maxBounds={[[ps, pw], [pn, pe]]}
       preferCanvas
+      zoomControl={false}
       className={`map${p.pickMode ? ' map--picking' : ''}`}
       aria-label="Mappa di Pisa con ostacoli e segnalazioni"
     >
+      {/* Tile OpenStreetMap desaturate via CSS (.tiles): percorso e ostacoli restano gli unici elementi colorati.
+          Le basemap CARTO richiedono una chiave dal browser (filigrana "API KEY REQUIRED"), quindi non si usano. */}
       <TileLayer
+        className="tiles"
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         maxZoom={19}
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
+      <ZoomControl position="bottomright" zoomInTitle="Avvicina" zoomOutTitle="Allontana" />
+      <ZoomWatcher onZoom={setZoom} />
       <MapEvents pickMode={p.pickMode} onPick={p.onPick} />
       <FocusController focus={p.focus} />
-      <Rectangle bounds={[[s, w], [n, e]]} interactive={false} pathOptions={{ color: '#1F3A5F', weight: 1.5, dashArray: '6 6', fill: false, opacity: 0.6 }} />
+      <Rectangle bounds={[[s, w], [n, e]]} interactive={false} pathOptions={{ color: c.frame, weight: 1.5, dashArray: '6 6', fill: false, opacity: 0.5 }} />
 
       {p.compareRoute && (
         <>
-          <Polyline positions={p.compareRoute.coords} interactive={false} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.85 }} />
+          <Polyline positions={p.compareRoute.coords} interactive={false} pathOptions={{ color: c.walk, weight: 8, opacity: 0.85 }} />
           <Polyline positions={p.compareRoute.coords} interactive={false}
-            pathOptions={{ color: '#3B4350', weight: 4, dashArray: '1 9', lineCap: 'round' }} />
+            pathOptions={{ color: c.foot, weight: 4, dashArray: '1 9', lineCap: 'round' }} />
         </>
       )}
       {p.route && (
@@ -140,13 +176,13 @@ export function MapView(p: Props) {
             <Polyline key={`seg-${i}`} positions={s.coords} interactive={false}
               pathOptions={{ color: s.kind === 'carriageway' ? '#E8A317' : '#B54800', weight: 18, opacity: 0.9, dashArray: '8 6', lineCap: 'butt' }} />
           ))}
-          <Polyline positions={p.route.coords} interactive={false} pathOptions={{ color: '#ffffff', weight: 11, opacity: 0.9 }} />
+          <Polyline positions={p.route.coords} interactive={false} pathOptions={{ color: c.casing, weight: 11, opacity: 0.95 }} />
           <Polyline
             positions={p.route.coords}
             interactive={false}
             pathOptions={p.route.mode === 'wheelchair'
-              ? { color: '#0B5CAD', weight: 6 }
-              : { color: '#0B5CAD', weight: 6, dashArray: '10 8', lineCap: 'butt' }}
+              ? { color: c.route, weight: 6 }
+              : { color: c.route, weight: 6, dashArray: '10 8', lineCap: 'butt' }}
           />
         </>
       )}
@@ -198,7 +234,7 @@ export function MapView(p: Props) {
       {p.to && <Marker position={[p.to.lat, p.to.lng]} icon={endpointIcon('B')} keyboard={false} zIndexOffset={1000} title={`Arrivo: ${p.to.label}`} />}
       {p.userPos && (
         <CircleMarker center={[p.userPos.lat, p.userPos.lng]} radius={8} interactive={false}
-          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#0B5CAD', fillOpacity: 1 }} />
+          pathOptions={{ color: '#ffffff', weight: 3, fillColor: c.route, fillOpacity: 1 }} />
       )}
     </MapContainer>
   );

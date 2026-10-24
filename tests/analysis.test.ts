@@ -16,7 +16,7 @@ function report(id: string, lat: number, lng: number, status: Report['status'] =
   return {
     id, lat, lng, description: 'gradino alto', category: 'steps', categorySource: 'interpretation', createdAt: '', status, source: 'user_report',
     interpretation: { category: 'steps', obstacle: null, summary: '', severity: 'unknown', missing_info: [], question: null, photo_note: null, blocking: null, engine: 'fallback' },
-    hasPhoto: false, blocking: null, blockingSource: 'interpretation',
+    hasPhoto: false, blocking: null, blockingSource: 'interpretation', snap: null, impact: 'caution',
   };
 }
 

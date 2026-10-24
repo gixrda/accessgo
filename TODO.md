@@ -1,4 +1,4 @@
-# TODO — AccessGo
+# TODO — OpenWay
 
 Stato al 24/10/2026. Per riprendere: `npm install && npm run dev`, poi `npm test`.
 
@@ -20,7 +20,10 @@ Stato al 24/10/2026. Per riprendere: `npm install && npm run dev`, poi `npm test
 - [x] Segnalazioni bloccanti evitate nel routing (exclude_polygons), ricalcolo automatico dopo l'invio
 - [x] Testi in linguaggio semplice (glossario: scivolo, strada, arrivo, fondo)
 - [x] Unito il commit del collaboratore (`cloud/`, edizione pubblicata separata)
-- [x] 99 test Vitest + `npm run check:ai` (controllo dal vivo di Gemma), type-check, build, E2E manuale con Playwright (desktop 1440×900, mobile 390×844), nessun errore JS in console
+- [x] Redesign map-first: mappa a tutto schermo, pannelli in vetro, tema scuro, logo, controlli flottanti
+- [x] Ricalcolo verificato: aggancio alla rete (/locate), regole per categoria, verifica geometrica, stati UI, 7 scenari testati
+- [x] Rinominato in OpenWay – Freedom to move; unito il lavoro del collega in `cloud/` (voce ElevenLabs, verificata sul sito pubblicato)
+- [x] 118 test Vitest + `npm run check:ai` (controllo dal vivo di Gemma), type-check, build, E2E manuale con Playwright (desktop 1440×900, mobile 390×844), nessun errore JS in console
 
 ## Da fare
 
@@ -33,6 +36,7 @@ Stato al 24/10/2026. Per riprendere: `npm install && npm run dev`, poi `npm test
 - [ ] Passare a Supabase/Postgres se servono più istanze o utenti reali
 - [ ] Clustering marker a zoom bassi (oggi ~370 marker DOM)
 - [ ] Integrare Wheelmap per l'accessibilità delle destinazioni; valutare dati PEBA
+- [ ] Comandi vocali nell'app principale (oggi solo nell'edizione `cloud/`): dettatura destinazione, guida vocale, intenti
 - [ ] ESLint (non configurato)
 - [ ] Allineare l'edizione `cloud/` al codice principale (oggi è una copia precedente: senza routing sicuro né ostacoli bloccanti, modello `gemma-3-27b-it`)
 

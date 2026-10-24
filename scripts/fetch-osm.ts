@@ -10,7 +10,7 @@ let json: { elements: Parameters<typeof normalizeOverpass>[0] } | undefined;
 for (const url of ENDPOINTS) {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'User-Agent': 'AccessGo-hackathon/0.1', 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'User-Agent': 'OpenWay-hackathon/0.1', 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ data: overpassQuery(DEMO_BBOX) }),
     signal: AbortSignal.timeout(90_000),
   }).catch((e: Error) => e);

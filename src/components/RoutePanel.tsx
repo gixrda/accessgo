@@ -4,6 +4,7 @@ import { api } from '../api.ts';
 import { routeAlerts, type RouteAlert } from '../lib/alerts.ts';
 import { formatDistance, formatDuration, type RouteAnalysis } from '../lib/analysis.ts';
 import { compareRoutes } from '../lib/compare.ts';
+import type { Recalc } from '../lib/reroute.ts';
 import { Icon } from './Icon.tsx';
 import type { PickMode, Selection } from './MapView.tsx';
 
@@ -29,6 +30,36 @@ interface Props {
   setShowFoot: (v: boolean) => void;
   onSelect: (s: Selection) => void;
   onFocus: (coords: LatLngTuple[]) => void;
+  recalc: Recalc | null;
+  onDismissRecalc: () => void;
+}
+
+/** Cosa è successo al percorso dopo l'ultima segnalazione. */
+export const RECALC_TEXT: Record<Recalc['kind'], { tone: 'warn' | 'calm'; title: string; text: string }> = {
+  running: { tone: 'calm', title: 'Ricalcolo in corso…', text: 'È stato segnalato un ostacolo sul tuo percorso: cerchiamo un\'alternativa.' },
+  updated: { tone: 'calm', title: 'Ostacolo rilevato: percorso aggiornato', text: 'Il nuovo percorso non passa più dal punto segnalato.' },
+  'no-alternative': { tone: 'warn', title: 'Nessun percorso alternativo', text: 'Non c\'è un percorso che eviti l\'ostacolo segnalato: quello mostrato ci passa ancora.' },
+  error: { tone: 'warn', title: 'Ricalcolo non riuscito', text: 'Il percorso mostrato non tiene conto del nuovo ostacolo.' },
+  'not-on-route': { tone: 'calm', title: 'Il percorso non cambia', text: 'L\'ostacolo segnalato non è sul tuo percorso. I prossimi percorsi lo eviteranno.' },
+  unlocated: { tone: 'warn', title: 'Ostacolo non localizzato', text: 'Il punto è lontano da ogni via: non lo usiamo per il calcolo. Puoi spostarlo più vicino al marciapiede.' },
+  caution: { tone: 'calm', title: 'Il percorso non cambia', text: 'La segnalazione è sulla mappa ma non blocca il passaggio.' },
+};
+
+function RecalcBanner({ recalc, onDismiss, onRetry }: { recalc: Recalc; onDismiss: () => void; onRetry: () => void }) {
+  const t = RECALC_TEXT[recalc.kind];
+  return (
+    <div className={`banner banner--${t.tone}`} role="status" aria-live="polite" aria-busy={recalc.kind === 'running'}>
+      <Icon name={recalc.kind === 'running' ? 'route' : t.tone === 'warn' ? 'warning' : 'check'} />
+      <div className="banner__text">
+        <strong>{t.title}</strong>
+        <span>{recalc.kind === 'error' ? `${recalc.message} ${t.text}` : t.text}</span>
+        {recalc.kind === 'error' && <button type="button" className="btn btn--sm btn--secondary" onClick={onRetry}>Riprova</button>}
+      </div>
+      {recalc.kind !== 'running' && (
+        <button type="button" className="btn btn--icon banner__close" onClick={onDismiss} aria-label="Chiudi il messaggio"><Icon name="close" /></button>
+      )}
+    </div>
+  );
 }
 
 type Compare = Pick<Props, 'footRoute' | 'footAnalysis' | 'showFoot' | 'setShowFoot'>;
@@ -261,6 +292,7 @@ export function RoutePanel(p: Props) {
           </div>
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing(true)}>Modifica</button>
         </div>
+        {p.recalc && <RecalcBanner recalc={p.recalc} onDismiss={p.onDismissRecalc} onRetry={p.onCalculate} />}
         <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} compare={p} />
       </section>
     );
