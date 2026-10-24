@@ -1,6 +1,8 @@
 import type { LatLngTuple, RouteResult } from '../shared/types.ts';
 import { routeDistances, type RouteManeuver } from '../shared/navigation.ts';
 import { HttpError, USER_AGENT, type Env } from './errors.ts';
+import { trustedBlockers, intersectingBlockers, exclusionRings, type RoutingSafetyContext, type ExclusionRing, type TrustedBlocker } from './route-safety.ts';
+export type { RoutingSafetyContext } from './route-safety.ts';
 
 type Point = { lat: number; lng: number };
 type LngLat = [number, number];
@@ -24,7 +26,7 @@ function geometry(raw: unknown): LatLngTuple[] {
 }
 
 /** ORS wheelchair, then Valhalla wheelchair; clearly labelled pedestrian fallback only on failure. */
-export async function getRoute(from: Point, to: Point, env: Env, via: Point[] = []): Promise<DirectedRoute> {
+async function initialRoute(from: Point, to: Point, env: Env, via: Point[] = [], allowWalkingFallback = true): Promise<DirectedRoute> {
   const points = orderedPoints(from, to, via);
   const routers = env.ORS_API_KEY
     ? [() => orsWheelchair(points, env.ORS_API_KEY!), () => valhalla(points, 'wheelchair')]
@@ -40,7 +42,57 @@ export async function getRoute(from: Point, to: Point, env: Env, via: Point[] = 
       reason = e instanceof HttpError ? e.message : 'Servizio di routing per sedia a rotelle non raggiungibile.';
     }
   }
+  if (!allowWalkingFallback) throw new HttpError(503, reason || NO_WHEELCHAIR_ROUTE);
   return { ...(await osrmFoot(points)), notice: `${reason} Mostrato un percorso pedonale standard.` };
+}
+
+
+/** Bounded provider rerouting, followed by an independent geometry check. This is a data
+ * check, not field validation; no walking fallback can bypass a supplied safety context. */
+export async function getRoute(from: Point, to: Point, env: Env, via: Point[] = [], context?: RoutingSafetyContext): Promise<DirectedRoute> {
+  let candidate = await initialRoute(from, to, env, via, !context);
+  if (!context) return candidate;
+  const points = orderedPoints(from, to, via);
+  const blockers = trustedBlockers(context);
+  let hits = intersectingBlockers(candidate.coords, blockers);
+  const excluded = new Map<string, TrustedBlocker>();
+  const key = (b: TrustedBlocker) => `${b.obstacle.source}:${b.obstacle.id}`;
+  const result = (blocked: boolean): DirectedRoute => {
+    const status = blocked ? 'blocked' : !context.reportsAvailable ? 'unavailable' : excluded.size ? 'rerouted' : 'checked';
+    const message = blocked
+      ? 'Nessuna alternativa che eviti tutti gli ostacoli identificati è stata trovata. Percorso solo da esaminare: guida vocale disattivata.'
+      : !context.reportsAvailable
+        ? 'Segnalazioni non disponibili: controllo degli ostacoli incompleto. Guida vocale disattivata; riprova prima di partire.'
+        : excluded.size
+          ? 'Percorso ricalcolato per evitare gli ostacoli identificati. Controllo sui dati disponibili, non verificato sul posto.'
+          : 'Nessun ostacolo bloccante identificato lungo questa geometria nei dati controllati. Le informazioni possono essere incomplete.';
+    const hitIds = new Set(hits.map(key));
+    return { ...candidate, maneuvers: blocked || !context.reportsAvailable ? [] : candidate.maneuvers,
+      safety: { status, message, blockedBy: hits.map(b => b.obstacle),
+        avoided: [...excluded.values()].filter(b => !hitIds.has(key(b))).map(b => b.obstacle), reportsChecked: context.reportsAvailable } };
+  };
+  // Providers can snap requested stops onto another road. Check the original requested
+  // positions against every blocker even when the returned geometry bypasses that stop.
+  const blockedStops = points.flatMap(p => intersectingBlockers([[p.lat, p.lng]], blockers));
+  if (blockedStops.length) {
+    hits = [...new Map([...hits, ...blockedStops].map(b => [key(b), b])).values()];
+    return result(true);
+  }
+  for (let attempt = 0; hits.length && attempt < 2; attempt++) {
+    for (const b of hits) excluded.set(key(b), b);
+    // A chosen stop inside a blocker cannot be silently snapped past or omitted.
+    if (points.some(p => intersectingBlockers([[p.lat, p.lng]], hits).length)) return result(true);
+    const rings = exclusionRings([...excluded.values()]);
+    if (rings.length > 80) return result(true); // avoid an oversized request to a public provider
+    try {
+      candidate = candidate.provider === 'openrouteservice' && env.ORS_API_KEY
+        ? await orsWheelchair(points, env.ORS_API_KEY, rings)
+        : await valhalla(points, 'wheelchair', rings);
+    } catch { return result(true); }
+    // Check every trusted blocker, including ones encountered only on a detour.
+    hits = intersectingBlockers(candidate.coords, blockers);
+  }
+  return result(hits.length > 0);
 }
 
 /** Standard walking comparison follows exactly the same ordered stops. */
@@ -58,11 +110,12 @@ type OrsStep = { instruction?: string; distance?: number; type?: number; way_poi
 type OrsResponse = { features?: { geometry?: { coordinates?: unknown }; properties?: {
   summary?: { distance?: number; duration?: number }; segments?: { steps?: OrsStep[] }[];
 } }[] };
-async function orsWheelchair(points: Point[], key: string): Promise<DirectedRoute> {
+async function orsWheelchair(points: Point[], key: string, exclusions: ExclusionRing[] = []): Promise<DirectedRoute> {
   const res = await fetch('https://api.openrouteservice.org/v2/directions/wheelchair/geojson', {
     method: 'POST',
     headers: { Authorization: key, 'Content-Type': 'application/json', Accept: 'application/geo+json' },
-    body: JSON.stringify({ coordinates: points.map(({ lng, lat }) => [lng, lat]), instructions: true, language: 'it' }),
+    body: JSON.stringify({ coordinates: points.map(({ lng, lat }) => [lng, lat]), instructions: true, language: 'it',
+      ...(exclusions.length ? { options: { avoid_polygons: { type: 'MultiPolygon', coordinates: exclusions.map(ring => [ring]) } } } : {}) }),
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 401 || res.status === 403) throw new HttpError(502, 'Chiave OpenRouteService non valida.');
@@ -161,7 +214,7 @@ function osrmManeuvers(route: OsrmRoute, coords: LatLngTuple[]): RouteManeuver[]
   return maneuvers;
 }
 
-async function valhalla(points: Point[], type: 'wheelchair' | 'foot'): Promise<DirectedRoute> {
+async function valhalla(points: Point[], type: 'wheelchair' | 'foot', exclusions: ExclusionRing[] = []): Promise<DirectedRoute> {
   const res = await fetch('https://valhalla1.openstreetmap.de/route', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT, 'X-Client-Id': 'accessogo.xyxzwb.chatgpt.site' },
@@ -169,6 +222,7 @@ async function valhalla(points: Point[], type: 'wheelchair' | 'foot'): Promise<D
       // break forces arrival/departure directions and a leg for every user-selected stop.
       locations: points.map(({ lat, lng }) => ({ lat, lon: lng, type: 'break' })),
       costing: 'pedestrian',
+      ...(exclusions.length ? { exclude_polygons: exclusions } : {}),
       // Valhalla penalizes steps rather than excluding them; existing OSM analysis still warns about steps.
       costing_options: { pedestrian: type === 'wheelchair' ? { type, step_penalty: 43_200 } : { type } },
       format: 'osrm', shape_format: 'geojson', language: 'it-IT', units: 'kilometers',

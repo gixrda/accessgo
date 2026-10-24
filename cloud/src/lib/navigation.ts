@@ -1,7 +1,7 @@
 import type { LatLngTuple, RouteResult } from '../../shared/types.ts';
 import { distanceMeters, routeDistances, type RouteManeuver } from '../../shared/navigation.ts';
 
-export type NavigationRoute = Pick<RouteResult, 'coords' | 'distanceM' | 'mode'> & { maneuvers?: RouteManeuver[] };
+export type NavigationRoute = Pick<RouteResult, 'coords' | 'distanceM' | 'mode' | 'safety'> & { maneuvers?: RouteManeuver[] };
 export interface NavigationGeometry { coords: LatLngTuple[]; cumulative: number[]; totalM: number }
 export interface PositionFix { coordinate: LatLngTuple; accuracyM: number; timestamp: number }
 export interface NavigationProgress { distanceM: number; segmentIndex: number; timestamp: number }
@@ -16,7 +16,12 @@ export function navigationGeometry(coords: LatLngTuple[]): NavigationGeometry | 
   return totalM > 1 ? { coords, cumulative, totalM } : null;
 }
 
+export function navigationBlocked(route: Pick<RouteResult, 'safety'>): boolean {
+  return route.safety?.status === 'blocked' || route.safety?.status === 'unavailable';
+}
+
 export function usableManeuvers(route: NavigationRoute): RouteManeuver[] {
+  if (navigationBlocked(route)) return [];
   if (route.mode !== 'wheelchair') return [];
   const geometry = navigationGeometry(route.coords);
   if (!geometry || !route.maneuvers?.length) return [];

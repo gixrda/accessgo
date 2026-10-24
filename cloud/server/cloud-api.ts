@@ -1,4 +1,4 @@
-import { inPisa, type OsmDataset } from '../shared/types.ts';
+import { inPisa, type OsmDataset, type Report } from '../shared/types.ts';
 import { aiProvider, interpret } from './ai.ts';
 import { analysisDescription, reserveAnalysisSlot } from './analysis-preview.ts';
 import { HttpError, type Env } from './errors.ts';
@@ -143,7 +143,16 @@ export function createCloudApi({ env, db, osm, getUserId }: CloudApiOptions) {
         }
         if (profile !== 'wheelchair' && profile !== 'foot') throw new HttpError(400, 'Profilo di percorso non valido.');
         const [a, b] = [from as { lat: number; lng: number }, to as { lat: number; lng: number }];
-        return send(200, profile === 'foot' ? await getFootRoute(a, b, via) : await getRoute(a, b, env, via));
+        if (profile === 'foot') return send(200, await getFootRoute(a, b, via));
+        // The client cannot forge or omit verified obstacles. Read the current server-owned
+        // snapshot for each wheelchair request; database failure is never an empty-safe list.
+        let reports: Report[] = [];
+        let reportsAvailable = false;
+        try {
+          reports = await createReportStore(database()).all();
+          reportsAvailable = true;
+        } catch { /* The route result exposes the incomplete check and withholds guidance. */ }
+        return send(200, await getRoute(a, b, env, via, { features: osm.features, reports, reportsAvailable }));
       }
       if (method === 'GET' && path === '/api/geocode') {
         const geocode = createGeocoder({ env, db: database(), features: osm.features });

@@ -170,7 +170,9 @@ export function MapView(p: Props) {
             <Polyline
               positions={p.route.coords}
               interactive={false}
-              pathOptions={p.route.mode === 'wheelchair'
+              pathOptions={p.route.safety?.status === 'blocked' || p.route.safety?.status === 'unavailable'
+                ? { color: '#B42318', weight: 6, dashArray: '8 8', lineCap: 'butt' }
+                : p.route.mode === 'wheelchair'
                 ? { color: '#0B5CAD', weight: 6 }
                 : { color: '#0B5CAD', weight: 6, dashArray: '10 8', lineCap: 'butt' }}
             />

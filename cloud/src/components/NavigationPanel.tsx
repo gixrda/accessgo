@@ -1,9 +1,14 @@
 import type { LatLngTuple, RouteResult } from '../../shared/types.ts';
 import { formatDistance } from '../lib/analysis.ts';
+import { navigationBlocked } from '../lib/navigation.ts';
 import { useVoiceNavigation } from '../hooks/useVoiceNavigation.ts';
 
 export function NavigationPanel({ route, onPosition }: { route: RouteResult; onPosition?: (coordinate: LatLngTuple) => void }) {
   const navigation = useVoiceNavigation(route, onPosition);
+  if (navigationBlocked(route)) return <section className="voice-navigation" aria-labelledby="voice-navigation-title">
+    <h3 id="voice-navigation-title">Guida vocale disattivata</h3>
+    <p>Questo percorso è disponibile solo per consultazione. Risolvi gli ostacoli indicati o calcola un nuovo percorso prima di avviare la guida.</p>
+  </section>;
   return (
     <section className="voice-navigation" aria-labelledby="voice-navigation-title">
       <h3 id="voice-navigation-title">Guida vocale</h3>
