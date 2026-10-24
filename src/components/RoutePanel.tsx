@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { GeocodeResult, OsmFeature, Report, RouteResult } from '../../shared/types.ts';
 import { api } from '../api.ts';
 import { formatDistance, formatDuration, type RouteAnalysis } from '../lib/analysis.ts';
+import { compareRoutes, comparisonVerdict } from '../lib/compare.ts';
 import { CATEGORY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import { Icon } from './Icon.tsx';
 import type { PickMode, Selection } from './MapView.tsx';
@@ -22,8 +23,14 @@ interface Props {
   error: string | null;
   route: RouteResult | null;
   analysis: RouteAnalysis | null;
+  footRoute: RouteResult | null;
+  footAnalysis: RouteAnalysis | null;
+  showFoot: boolean;
+  setShowFoot: (v: boolean) => void;
   onSelect: (s: Selection) => void;
 }
+
+type Compare = Pick<Props, 'footRoute' | 'footAnalysis' | 'showFoot' | 'setShowFoot'>;
 
 function PlaceField(props: {
   letter: 'A' | 'B'; label: string; value: Place | null; picking: boolean;
@@ -126,7 +133,43 @@ function ReportList({ items, onSelect }: { items: Report[]; onSelect: Props['onS
   );
 }
 
-function RouteSummary({ route, analysis, onSelect }: { route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect'] }) {
+function CompareCard({ route, analysis, foot, footAnalysis, showFoot, setShowFoot, onSelect }: {
+  route: RouteResult; analysis: RouteAnalysis; foot: RouteResult; footAnalysis: RouteAnalysis;
+  showFoot: boolean; setShowFoot: (v: boolean) => void; onSelect: Props['onSelect'];
+}) {
+  const c = compareRoutes({ distanceM: route.distanceM, analysis }, { distanceM: foot.distanceM, analysis: footAnalysis });
+  return (
+    <section className="compare" aria-labelledby="compare-title">
+      <h3 id="compare-title" className="compare__title">Confronto con il percorso a piedi</h3>
+      <table className="compare__table">
+        <thead>
+          <tr><th scope="col"><span className="sr-only">Profilo</span></th><th scope="col">Distanza</th><th scope="col">Ostacoli noti</th><th scope="col">Possibili criticità</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><span className="swatch swatch--wheel" aria-hidden="true" />Sedia a rotelle</th>
+            <td>{formatDistance(route.distanceM)}</td><td>{analysis.known.length}</td><td>{analysis.possible.length}</td>
+          </tr>
+          <tr>
+            <th scope="row"><span className="swatch swatch--foot" aria-hidden="true" />A piedi</th>
+            <td>{formatDistance(foot.distanceM)}</td><td>{footAnalysis.known.length}</td><td>{footAnalysis.possible.length}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className={`compare__verdict${c.avoidedKnown.length ? ' is-strong' : ''}`}>{comparisonVerdict(c, formatDistance)}</p>
+      <FeatureList title="Ostacoli noti evitati" items={c.avoidedKnown} tone="known" onSelect={onSelect} open />
+      <FeatureList title="Ostacoli noti solo sul percorso per sedia a rotelle" items={c.addedKnown} tone="known" onSelect={onSelect} open />
+      <label className="layer">
+        <input type="checkbox" checked={showFoot} onChange={(e) => setShowFoot(e.target.checked)} />
+        Mostra il percorso a piedi sulla mappa
+      </label>
+    </section>
+  );
+}
+
+function RouteSummary({ route, analysis, onSelect, compare }: {
+  route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; compare: Compare;
+}) {
   const pct = Math.round(analysis.coverage * 100);
   const noKnown = !analysis.known.length && !analysis.reports.length;
   return (
@@ -152,6 +195,11 @@ function RouteSummary({ route, analysis, onSelect }: { route: RouteResult; analy
           <dd>{route.durationS !== null ? formatDuration(route.durationS) : <span className="muted" title="La durata disponibile è calcolata a passo pedonale">Non stimata</span>}</dd>
         </div>
       </dl>
+
+      {route.mode === 'wheelchair' && compare.footRoute && compare.footAnalysis && (
+        <CompareCard route={route} analysis={analysis} foot={compare.footRoute} footAnalysis={compare.footAnalysis}
+          showFoot={compare.showFoot} setShowFoot={compare.setShowFoot} onSelect={onSelect} />
+      )}
 
       <ol className="ladder" aria-label="Affidabilità delle informazioni">
         <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Percorso calcolato</li>
@@ -201,7 +249,7 @@ export function RoutePanel(p: Props) {
           disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti">⇅</button>
       </div>
       {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
-      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} />}
+      {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} compare={p} />}
       {!p.route && !p.error && !p.loading && (
         <p className="hint">Imposta partenza e destinazione cercando un indirizzo o toccando la mappa. AccessGo mostra le criticità note e quanto sono complete le informazioni lungo il tragitto.</p>
       )}

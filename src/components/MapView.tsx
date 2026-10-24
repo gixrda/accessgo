@@ -16,6 +16,8 @@ interface Props {
   reports: Report[];
   layers: Layers;
   route: RouteResult | null;
+  /** Percorso a piedi mostrato per confronto */
+  compareRoute: RouteResult | null;
   from: Place | null;
   to: Place | null;
   reportPoint: { lat: number; lng: number } | null;
@@ -118,6 +120,13 @@ export function MapView(p: Props) {
       <FocusController focus={p.focus} />
       <Rectangle bounds={[[s, w], [n, e]]} interactive={false} pathOptions={{ color: '#1F3A5F', weight: 1.5, dashArray: '6 6', fill: false, opacity: 0.6 }} />
 
+      {p.compareRoute && (
+        <>
+          <Polyline positions={p.compareRoute.coords} interactive={false} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.85 }} />
+          <Polyline positions={p.compareRoute.coords} interactive={false}
+            pathOptions={{ color: '#3B4350', weight: 4, dashArray: '1 9', lineCap: 'round' }} />
+        </>
+      )}
       {p.route && (
         <>
           <Polyline positions={p.route.coords} interactive={false} pathOptions={{ color: '#ffffff', weight: 11, opacity: 0.9 }} />

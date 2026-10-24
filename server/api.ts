@@ -4,7 +4,7 @@ import { inPisa, PISA_BOUNDS, type GeocodeResult, type ServerStatus } from '../s
 import { aiProvider } from './ai.ts';
 import { HttpError, USER_AGENT, type Env } from './errors.ts';
 import { createReportStore } from './reports.ts';
-import { getRoute } from './routing.ts';
+import { getFootRoute, getRoute } from './routing.ts';
 
 export interface ApiOptions {
   env: Env;
@@ -71,11 +71,15 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
         return send(res, 200, await reports.setStatus(m[1], status));
       }
       if (method === 'POST' && path === '/api/route') {
-        const { from, to } = (await body(req) ?? {}) as { from?: { lat?: unknown; lng?: unknown }; to?: { lat?: unknown; lng?: unknown } };
+        const { from, to, profile = 'wheelchair' } = (await body(req) ?? {}) as {
+          from?: { lat?: unknown; lng?: unknown }; to?: { lat?: unknown; lng?: unknown }; profile?: unknown;
+        };
         if (!from || !to || !inPisa(from.lat, from.lng) || !inPisa(to.lat, to.lng)) {
           throw new HttpError(400, 'Partenza e destinazione devono trovarsi a Pisa.');
         }
-        return send(res, 200, await getRoute(from as { lat: number; lng: number }, to as { lat: number; lng: number }, env));
+        if (profile !== 'wheelchair' && profile !== 'foot') throw new HttpError(400, 'Profilo di percorso non valido.');
+        const [a, b] = [from as { lat: number; lng: number }, to as { lat: number; lng: number }];
+        return send(res, 200, profile === 'foot' ? await getFootRoute(a, b) : await getRoute(a, b, env));
       }
       if (method === 'GET' && path === '/api/geocode') return send(res, 200, await geocode(url.searchParams.get('q') ?? ''));
       throw new HttpError(404, 'Risorsa non trovata.');

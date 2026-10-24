@@ -33,6 +33,8 @@ export default function App() {
   const [from, setFrom] = useState<Place | null>(null);
   const [to, setTo] = useState<Place | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);
+  const [footRoute, setFootRoute] = useState<RouteResult | null>(null);
+  const [showFoot, setShowFoot] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [reportPoint, setReportPoint] = useState<{ lat: number; lng: number } | null>(null);
@@ -49,6 +51,7 @@ export default function App() {
 
   const features = useMemo(() => osm?.features ?? [], [osm]);
   const analysis = useMemo(() => route ? analyzeRoute(route.coords, features, reports) : null, [route, features, reports]);
+  const footAnalysis = useMemo(() => footRoute ? analyzeRoute(footRoute.coords, features, reports) : null, [footRoute, features, reports]);
 
   const setPickMode = useCallback((m: PickMode) => {
     setPickModeRaw(m);
@@ -56,8 +59,8 @@ export default function App() {
   }, []);
 
   // Un nuovo punto invalida il percorso precedente.
-  const changeFrom = (p: Place | null) => { setFrom(p); setRoute(null); setRouteError(null); };
-  const changeTo = (p: Place | null) => { setTo(p); setRoute(null); setRouteError(null); };
+  const changeFrom = (p: Place | null) => { setFrom(p); setRoute(null); setFootRoute(null); setRouteError(null); };
+  const changeTo = (p: Place | null) => { setTo(p); setRoute(null); setFootRoute(null); setRouteError(null); };
 
   function onPick(p: { lat: number; lng: number }) {
     const label = `Punto sulla mappa (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)})`;
@@ -94,14 +97,15 @@ export default function App() {
 
   async function calculate() {
     if (!from || !to) return;
-    setRouteLoading(true); setRouteError(null); setRoute(null); setSelection(null);
-    try {
-      const r = await api.route(from, to);
-      setRoute(r);
-      setFocus({ coords: r.coords, nonce: Date.now() });
-    } catch (e) {
-      setRouteError((e as Error).message);
-    } finally { setRouteLoading(false); }
+    setRouteLoading(true); setRouteError(null); setRoute(null); setFootRoute(null); setSelection(null);
+    // Il percorso a piedi serve solo al confronto: se non arriva, il percorso principale resta valido.
+    const [main, foot] = await Promise.allSettled([api.route(from, to), api.route(from, to, 'foot')]);
+    setRouteLoading(false);
+    if (main.status === 'rejected') { setRouteError((main.reason as Error).message); return; }
+    const footR = foot.status === 'fulfilled' ? foot.value : null;
+    setRoute(main.value);
+    setFootRoute(footR);
+    setFocus({ coords: [...main.value.coords, ...(footR?.coords ?? [])], nonce: Date.now() });
   }
 
   function select(s: Selection) {
@@ -164,7 +168,8 @@ export default function App() {
             ) : tab === 'route' ? (
               <RoutePanel from={from} to={to} setFrom={changeFrom} setTo={changeTo} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} onCalculate={calculate} loading={routeLoading} error={routeError}
-                route={route} analysis={analysis} onSelect={select} />
+                route={route} analysis={analysis} footRoute={footRoute} footAnalysis={footAnalysis}
+                showFoot={showFoot} setShowFoot={setShowFoot} onSelect={select} />
             ) : (
               <ReportPanel point={reportPoint} setPoint={setReportPoint} pickMode={pickMode} setPickMode={setPickMode}
                 onLocate={locate} locating={locating} status={status}
@@ -176,6 +181,7 @@ export default function App() {
 
         <div className="map-area">
           <MapView features={features} reports={reports} layers={layers} route={route} from={from} to={to}
+            compareRoute={route?.mode === 'wheelchair' && showFoot ? footRoute : null}
             reportPoint={reportPoint} userPos={userPos} pickMode={pickMode} selection={selection} focus={focus}
             onPick={onPick} onSelect={select} />
           <LayersControl layers={layers} onChange={setLayers} osmDate={osm?.fetchedAt} />

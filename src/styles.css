@@ -184,6 +184,18 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 }
 .group li button:hover { background: var(--bg); }
 
+.compare { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); }
+.compare__title { font-size: 1rem; }
+.compare__table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.compare__table th, .compare__table td { padding: 6px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+.compare__table thead th { font-size: 0.78rem; font-weight: 400; color: var(--ink-2); }
+.compare__table tbody th { text-align: left; font-weight: 700; white-space: nowrap; }
+.compare__table tbody tr:last-child > * { border-bottom: 0; }
+.compare__verdict { font-size: 0.92rem; }
+.compare__verdict.is-strong { font-weight: 700; }
+.swatch { display: inline-block; width: 22px; height: 0; margin-right: 8px; vertical-align: middle; border-top: 5px solid var(--primary); border-radius: 3px; }
+.swatch--foot { border-top: 4px dotted #3b4350; border-radius: 0; }
+
 /* ---------- Stato segnalazioni ---------- */
 .status {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px;

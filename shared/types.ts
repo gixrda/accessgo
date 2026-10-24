@@ -72,8 +72,12 @@ export interface Report {
 }
 
 export interface RouteResult {
-  /** wheelchair = profilo per sedia a rotelle (ORS o Valhalla); foot_fallback = percorso pedonale standard, NON valutato */
-  mode: 'wheelchair' | 'foot_fallback';
+  /**
+   * wheelchair = profilo per sedia a rotelle (ORS o Valhalla);
+   * foot_fallback = percorso pedonale mostrato perché i servizi per sedia a rotelle non rispondono (NON valutato);
+   * foot = percorso pedonale standard richiesto solo per il confronto
+   */
+  mode: 'wheelchair' | 'foot_fallback' | 'foot';
   provider: 'openrouteservice' | 'valhalla' | 'osrm-fossgis';
   coords: LatLngTuple[];
   distanceM: number;

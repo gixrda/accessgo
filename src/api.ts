@@ -24,6 +24,7 @@ export const api = {
     request<Report>('/api/reports', { method: 'POST', body: JSON.stringify(body) }),
   setStatus: (id: string, status: VerificationStatus, token: string) =>
     request<Report>(`/api/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'x-admin-token': token } }),
-  route: (from: Point, to: Point) => request<RouteResult>('/api/route', { method: 'POST', body: JSON.stringify({ from, to }) }),
+  route: (from: Point, to: Point, profile: 'wheelchair' | 'foot' = 'wheelchair') =>
+    request<RouteResult>('/api/route', { method: 'POST', body: JSON.stringify({ from, to, profile }) }),
   geocode: (q: string) => request<GeocodeResult[]>(`/api/geocode?q=${encodeURIComponent(q)}`),
 };

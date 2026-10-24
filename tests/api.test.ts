@@ -107,6 +107,18 @@ describe('API senza credenziali', () => {
     expect(r.notice).toMatch(/sedia a rotelle ha restituito un errore.*pedonale standard/);
   });
 
+  it('calcola il percorso a piedi per il confronto con lo stesso motore, OSRM come riserva', async () => {
+    mockExternal((url, init) => {
+      expect(url).toContain('valhalla');
+      expect(JSON.parse(init?.body as string).costing_options).toEqual({ pedestrian: { type: 'foot' } });
+      return Response.json(OSRM_OK);
+    });
+    expect(await (await post('/api/route', { from: PISA, to: PISA, profile: 'foot' })).json()).toMatchObject({ mode: 'foot', provider: 'valhalla' });
+    mockExternal((url) => url.includes('valhalla') ? new Response('', { status: 502 }) : Response.json(OSRM_OK));
+    expect(await (await post('/api/route', { from: PISA, to: PISA, profile: 'foot' })).json()).toMatchObject({ mode: 'foot', provider: 'osrm-fossgis' });
+    expect((await post('/api/route', { from: PISA, to: PISA, profile: 'auto' })).status).toBe(400);
+  });
+
   it('valida le coordinate del percorso', async () => {
     expect((await post('/api/route', { from: PISA, to: { lat: 0, lng: 0 } })).status).toBe(400);
     expect((await post('/api/route', {})).status).toBe(400);

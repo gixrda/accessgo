@@ -11,10 +11,11 @@ Stato al 24/10/2026. Per riprendere: `npm install && npm run dev`, poi `npm test
 - [x] Partenza/destinazione: mappa, ricerca Nominatim, GPS (permesso negato gestito)
 - [x] Routing per sedia a rotelle gratuito: ORS (chiave facoltativa) → Valhalla FOSSGIS (senza chiave) → OSRM pedonale dichiarato
 - [x] Analisi percorso: ostacoli, segnalazioni vicine, attraversamenti senza dati, copertura
+- [x] Confronto a piedi / sedia a rotelle (stesso motore Valhalla), ostacoli evitati e aggiunti
 - [x] Segnalazioni: validazione, anti doppio invio, stato iniziale `unverified`, persistenza JSON
 - [x] Interpretazione Gemma (Google AI Studio / Ollama) con validazione + fallback a regole dichiarato
 - [x] Stati verificata/risolta con codice moderatore
-- [x] 65 test Vitest, type-check, build, E2E manuale con Playwright (desktop 1440×900, mobile 390×844), nessun errore JS in console
+- [x] 71 test Vitest, type-check, build, E2E manuale con Playwright (desktop 1440×900, mobile 390×844), nessun errore JS in console
 
 ## Da fare
 

@@ -28,7 +28,7 @@ npm start                 # http://localhost:8787
 | `npm run dev` | Vite + API (`/api/*` montate come middleware) |
 | `npm run build` | type-check (`tsc -b`) + build frontend in `dist/` |
 | `npm start` | server Node: API + `dist/` |
-| `npm test` | test Vitest (65 test: normalizzazione OSM, analisi percorso, AI/fallback, API e routing) |
+| `npm test` | test Vitest (71 test: normalizzazione OSM, analisi e confronto percorsi, AI/fallback, API e routing) |
 | `npm run typecheck` | solo type-check |
 | `npm run fetch:osm` | riscarica lo snapshot OSM da Overpass (una richiesta, con mirror di riserva) |
 
@@ -56,6 +56,7 @@ Lo stato dei servizi è visibile nella barra in alto (desktop) e in ogni risulta
   2. **Valhalla** `pedestrian` con `type: wheelchair` sull'istanza pubblica FOSSGIS (nessuna chiave): 4 km/h, solo fondi compatti o migliori, scale con penalità massima (usate solo se non c'è alternativa, e in quel caso segnalate come ostacolo noto). **Non conosce l'altezza dei cordoli**: l'interfaccia lo dice e mostra gli attraversamenti senza dati;
   3. solo se nessuno dei due risponde: percorso pedonale OSRM, **dichiarato come non calcolato per sedia a rotelle** e senza durata.
   Se il servizio per sedia a rotelle risponde "nessun percorso", AccessGo non lo sostituisce con un percorso pedonale.
+- **Confronto a piedi / sedia a rotelle**: lo stesso motore (Valhalla) calcola anche il percorso pedonale standard; tabella con distanza, ostacoli noti e possibili criticità di entrambi, ostacoli evitati e ostacoli presenti solo sul percorso per sedia a rotelle. Linea continua blu = sedia a rotelle, linea a puntini grigia = a piedi (disattivabile).
 - **Percorso**: partenza/destinazione da ricerca indirizzi (Nominatim, limitata a Pisa, 1 richiesta/s, nessun autocompletamento come da policy), click sulla mappa o posizione GPS.
 - **Analisi del percorso** con tre livelli di affidabilità sempre visibili: *calcolato* ✓ · *confrontato con OSM e segnalazioni* ✓ · *verificato sul posto* ✕. Elenca ostacoli noti, possibili criticità, segnalazioni utenti, attraversamenti senza dati sul cordolo, elementi favorevoli, e la copertura dei dati su superficie/pendenza/larghezza.
 - **Ostacoli OSM** normalizzati (`server/osm.ts`) con fonte, tipo, posizione e certezza:
@@ -83,7 +84,7 @@ src/components/        mappa, pannelli percorso/segnalazione/dettaglio, livelli
 tests/                 Vitest
 ```
 
-API: `GET /api/status`, `GET /api/osm`, `GET|POST /api/reports`, `PATCH /api/reports/:id` (header `x-admin-token`), `POST /api/route`, `GET /api/geocode?q=`.
+API: `GET /api/status`, `GET /api/osm`, `GET|POST /api/reports`, `PATCH /api/reports/:id` (header `x-admin-token`), `POST /api/route` (`profile`: `wheelchair` predefinito o `foot` per il confronto), `GET /api/geocode?q=`.
 
 ## Dati
 
@@ -93,7 +94,7 @@ API: `GET /api/status`, `GET /api/osm`, `GET|POST /api/reports`, `PATCH /api/rep
 ## Script per la demo (≈ 3 minuti)
 
 1. Apri l'app: mappa della zona universitaria con ostacoli reali OSM (quadrati = ostacoli noti, rombi = possibili criticità, cerchi = elementi favorevoli). Apri *Legenda e livelli*.
-2. *Percorso* → cerca "Piazza dei Cavalieri" come partenza, poi *Scegli sulla mappa* per la destinazione oltre l'Arno → *Calcola percorso*.
+2. *Percorso* → *Scegli sulla mappa* per partenza e destinazione → *Calcola percorso*. Coppia consigliata (verificata dal vivo il 24/10/2026), vicino a Lungarno Mediceo: **A ≈ 43.71532, 10.40624 → B ≈ 43.71607, 10.40669**. Il confronto mostra che il percorso a piedi (140 m) passa da una scala, quello per sedia a rotelle la evita (290 m) ma passa da un cordolo rialzato che il router non conosce: AccessGo lo segnala.
 3. Mostra distanza e durata (profilo sedia a rotelle), la scala di affidabilità, la copertura dati e gli elenchi; clicca un elemento per vederne i tag OSM e la fonte. Fai notare che il router non conosce i cordoli: per questo l'app elenca gli attraversamenti senza dati.
 4. *+ Segnala ostacolo* → tocca un punto → scrivi "In Via Roma c'è un gradino troppo alto e non riesco a passare con la sedia a rotelle." → *Invia*.
 5. Mostra l'interpretazione strutturata (Gemma o regole, dichiarato) e il segnaposto con "?" = non verificata. Ricalcola il percorso vicino: la segnalazione compare tra le criticità.
