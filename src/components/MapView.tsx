@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { CircleMarker, MapContainer, Marker, Polyline, Rectangle, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { DEMO_BBOX, PISA_BOUNDS, type LatLngTuple, type OsmFeature, type Report, type RouteResult } from '../../shared/types.ts';
 import { CATEGORY_ICON, CATEGORY_LABEL, CERTAINTY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
+import type { RouteObstacle } from '../lib/analysis.ts';
 import { iconSvg, type IconName } from '../lib/icons.ts';
 
 export type Layers = Record<'known' | 'possible' | 'positive' | 'info' | 'places' | 'reports', boolean>;
@@ -18,6 +19,8 @@ interface Props {
   route: RouteResult | null;
   /** Percorso a piedi mostrato per confronto */
   compareRoute: RouteResult | null;
+  /** Ostacoli sul percorso, in ordine: mostrati con il numero dell'elenco */
+  obstacles: RouteObstacle[];
   from: Place | null;
   to: Place | null;
   reportPoint: { lat: number; lng: number } | null;
@@ -171,6 +174,17 @@ export function MapView(p: Props) {
         />
       ))}
 
+      {p.obstacles.map((o, i) => (
+        <Marker
+          key={`num-${o.type === 'feature' ? o.feature.id : o.report.id}`}
+          position={o.type === 'report' ? [o.report.lat, o.report.lng] : o.feature.geometry.type === 'point' ? o.feature.geometry.coords : o.feature.geometry.coords[0]}
+          icon={divIcon(`num-${i + 1}`, `<span class="route-num">${i + 1}</span>`, [22, 22], [-6, 30])}
+          keyboard={false}
+          zIndexOffset={800}
+          title={`Ostacolo ${i + 1} lungo il percorso`}
+          eventHandlers={clickHandler(o.type === 'feature' ? { type: 'feature', feature: o.feature } : { type: 'report', report: o.report })}
+        />
+      ))}
       {p.reportPoint && <Marker position={[p.reportPoint.lat, p.reportPoint.lng]} icon={draftIcon} keyboard={false} zIndexOffset={900} title="Posizione della nuova segnalazione" />}
       {p.from && <Marker position={[p.from.lat, p.from.lng]} icon={endpointIcon('A')} keyboard={false} zIndexOffset={1000} title={`Partenza: ${p.from.label}`} />}
       {p.to && <Marker position={[p.to.lat, p.to.lng]} icon={endpointIcon('B')} keyboard={false} zIndexOffset={1000} title={`Destinazione: ${p.to.label}`} />}

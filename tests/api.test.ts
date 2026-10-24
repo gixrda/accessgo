@@ -76,6 +76,39 @@ describe('API senza credenziali', () => {
     expect((await res.json()).error).toBeTypeOf('string');
   });
 
+  it('assistente: bozza analizzata, risposta alla domanda e foto salvate con la segnalazione', async () => {
+    const photo = `data:image/jpeg;base64,${Buffer.from('jpeg-finto').toString('base64')}`;
+    const draftRes = await post('/api/reports/draft', { description: "C'è un gradino alto davanti al bar", photo });
+    expect(draftRes.status).toBe(200);
+    const draft = await draftRes.json();
+    expect(draft.draftId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(draft.interpretation.question.options).toContain('Più di 10 cm');
+
+    expect((await post('/api/reports', { ...PISA, description: "C'è un gradino alto davanti al bar", draftId: draft.draftId, answer: 'Inventata' })).status).toBe(400);
+    const res = await post('/api/reports', { ...PISA, description: "C'è un gradino alto davanti al bar", draftId: draft.draftId, answer: 'Più di 10 cm' });
+    expect(res.status).toBe(201);
+    const r = await res.json();
+    expect(r).toMatchObject({ hasPhoto: true, status: 'unverified', followUp: { question: draft.interpretation.question.text, answer: 'Più di 10 cm' } });
+    const img = await call(`/api/reports/${r.id}/photo`);
+    expect(img.headers.get('content-type')).toBe('image/jpeg');
+    expect(Buffer.from(await img.arrayBuffer()).toString()).toBe('jpeg-finto');
+  });
+
+  it('una bozza non vale per un testo diverso da quello analizzato', async () => {
+    const photo = `data:image/jpeg;base64,${Buffer.from('x').toString('base64')}`;
+    const draft = await (await post('/api/reports/draft', { description: 'Gradino alto davanti al bar', photo })).json();
+    const r = await (await post('/api/reports', { ...PISA, description: 'Testo cambiato dopo l\'analisi', draftId: draft.draftId })).json();
+    expect(r.hasPhoto).toBe(false);
+    expect((await call(`/api/reports/${r.id}/photo`)).status).toBe(404);
+  });
+
+  it('accetta solo foto JPEG di dimensioni ragionevoli', async () => {
+    expect((await post('/api/reports/draft', { description: 'Gradino alto davanti al bar', photo: 'data:image/png;base64,AAAA' })).status).toBe(400);
+    expect((await post('/api/reports/draft', { description: 'Gradino alto davanti al bar', photo: '../../etc/passwd' })).status).toBe(400);
+    const big = `data:image/jpeg;base64,${'A'.repeat(2_100_000)}`;
+    expect((await post('/api/reports/draft', { description: 'Gradino alto davanti al bar', photo: big })).status).toBe(413);
+  });
+
   it('blocca il doppio invio accidentale', async () => {
     const body = { ...PISA, description: 'Gradino alto davanti al bar' };
     expect((await post('/api/reports', body)).status).toBe(201);

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { GeocodeResult, OsmFeature, Report, RouteResult } from '../../shared/types.ts';
 import { api } from '../api.ts';
-import { formatDistance, formatDuration, type RouteAnalysis } from '../lib/analysis.ts';
+import { formatDistance, formatDuration, routeObstacles, type RouteAnalysis } from '../lib/analysis.ts';
 import { compareRoutes, comparisonVerdict } from '../lib/compare.ts';
 import { CATEGORY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import { Icon } from './Icon.tsx';
@@ -115,21 +115,37 @@ function FeatureList({ title, items, tone, onSelect, open }: {
   );
 }
 
-function ReportList({ items, onSelect }: { items: Report[]; onSelect: Props['onSelect'] }) {
-  if (!items.length) return null;
+/** Ostacoli noti e segnalazioni nell'ordine in cui si incontrano: numerati come sulla mappa. */
+function ObstacleList({ analysis, onSelect }: { analysis: RouteAnalysis; onSelect: Props['onSelect'] }) {
+  const items = routeObstacles(analysis);
+  if (!items.length) {
+    return (
+      <p className="msg">Nessun ostacolo noto lungo il percorso <strong>nei dati disponibili</strong>. Questo non garantisce che il percorso sia accessibile.</p>
+    );
+  }
+  const reports = analysis.reports.length;
   return (
-    <details className="group group--report" open>
-      <summary><span className="mk mk--report mk--inline" aria-hidden="true" /> Segnalazioni degli utenti <span className="count">{items.length}</span></summary>
-      <ul>
-        {items.map((r) => (
-          <li key={r.id}>
-            <button type="button" onClick={() => onSelect({ type: 'report', report: r })}>
-              {CATEGORY_LABEL[r.category]} <span className={`status status--${r.status}`}>{STATUS_LABEL[r.status]}</span>
+    <section className="obstacles" aria-labelledby="obstacles-title">
+      <h3 id="obstacles-title" className="obstacles__title">
+        <span aria-hidden="true">⚠</span> {items.length === 1 ? '1 ostacolo' : `${items.length} ostacoli`} lungo il percorso
+      </h3>
+      <ol className="obstacles__list">
+        {items.map((o, i) => (
+          <li key={o.type === 'feature' ? o.feature.id : o.report.id}>
+            <button type="button" onClick={() => onSelect(o.type === 'feature' ? { type: 'feature', feature: o.feature } : { type: 'report', report: o.report })}>
+              <span className="route-num" aria-hidden="true">{i + 1}</span>
+              <span className="obstacles__what">
+                {o.type === 'feature'
+                  ? <>{o.feature.label}{o.feature.name ? ` · ${o.feature.name}` : ''} <span className="muted">(OpenStreetMap)</span></>
+                  : <>{CATEGORY_LABEL[o.report.category]} <span className={`status status--${o.report.status}`}>{STATUS_LABEL[o.report.status]}</span></>}
+              </span>
+              <span className="obstacles__where">a {formatDistance(o.alongM)}</span>
             </button>
           </li>
         ))}
-      </ul>
-    </details>
+      </ol>
+      {reports > 0 && <p className="field__help">Le segnalazioni degli utenti sono incluse anche se non ancora verificate.</p>}
+    </section>
   );
 }
 
@@ -171,7 +187,6 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
   route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; compare: Compare;
 }) {
   const pct = Math.round(analysis.coverage * 100);
-  const noKnown = !analysis.known.length && !analysis.reports.length;
   return (
     <div className="summary" aria-live="polite">
       {route.mode === 'wheelchair' ? (
@@ -195,6 +210,8 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
           <dd>{route.durationS !== null ? formatDuration(route.durationS) : <span className="muted" title="La durata disponibile è calcolata a passo pedonale">Non stimata</span>}</dd>
         </div>
       </dl>
+
+      <ObstacleList analysis={analysis} onSelect={onSelect} />
 
       {route.mode === 'wheelchair' && compare.footRoute && compare.footAnalysis && (
         <CompareCard route={route} analysis={analysis} foot={compare.footRoute} footAnalysis={compare.footAnalysis}
@@ -220,11 +237,6 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
         )}
       </div>
 
-      {noKnown && (
-        <p className="msg">Nessun ostacolo noto lungo il percorso <strong>nei dati disponibili</strong>. Questo non garantisce che il percorso sia accessibile.</p>
-      )}
-      <FeatureList title="Ostacoli noti" items={analysis.known} tone="known" onSelect={onSelect} open />
-      <ReportList items={analysis.reports} onSelect={onSelect} />
       <FeatureList title="Possibili criticità" items={analysis.possible} tone="possible" onSelect={onSelect} open={analysis.possible.length <= 6} />
       <FeatureList title="Attraversamenti senza dati sul cordolo" items={analysis.unknown} tone="info" onSelect={onSelect} open={analysis.unknown.length <= 4} />
       <FeatureList title="Elementi favorevoli" items={analysis.positive} tone="positive" onSelect={onSelect} />

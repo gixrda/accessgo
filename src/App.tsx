@@ -6,7 +6,7 @@ import { LayersControl } from './components/LayersControl.tsx';
 import { MapView, type Focus, type Layers, type PickMode, type Selection } from './components/MapView.tsx';
 import { ReportPanel } from './components/ReportPanel.tsx';
 import { RoutePanel } from './components/RoutePanel.tsx';
-import { analyzeRoute } from './lib/analysis.ts';
+import { analyzeRoute, routeObstacles } from './lib/analysis.ts';
 
 type Place = { lat: number; lng: number; label: string };
 type Tab = 'route' | 'report';
@@ -182,6 +182,7 @@ export default function App() {
         <div className="map-area">
           <MapView features={features} reports={reports} layers={layers} route={route} from={from} to={to}
             compareRoute={route?.mode === 'wheelchair' && showFoot ? footRoute : null}
+            obstacles={analysis ? routeObstacles(analysis) : []}
             reportPoint={reportPoint} userPos={userPos} pickMode={pickMode} selection={selection} focus={focus}
             onPick={onPick} onSelect={select} />
           <LayersControl layers={layers} onChange={setLayers} osmDate={osm?.fetchedAt} />

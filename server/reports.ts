@@ -1,18 +1,42 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
-  REPORT_CATEGORIES, VERIFICATION_STATUSES, inPisa,
-  type Report, type ReportCategory, type VerificationStatus,
+  NOT_SURE, REPORT_CATEGORIES, VERIFICATION_STATUSES, inPisa,
+  type Interpretation, type Report, type ReportCategory, type ReportDraft, type VerificationStatus,
 } from '../shared/types.ts';
-import { interpret } from './ai.ts';
+import { interpret, type Photo } from './ai.ts';
 import { HttpError, type Env } from './errors.ts';
 
-// shortcut: persistenza su un file JSON locale (un solo processo, nessuna concorrenza tra istanze);
-// passare a Supabase/Postgres se l'app va pubblicata con più utenti reali.
+const MAX_PHOTO_BYTES = 1_500_000;
+const DRAFT_TTL_MS = 30 * 60_000;
+const MAX_DRAFTS = 200;
+
+function parseDescription(description: unknown): string {
+  if (typeof description !== 'string' || description.trim().length < 10) {
+    throw new HttpError(400, 'Descrivi il problema con almeno 10 caratteri.');
+  }
+  if (description.length > 1000) throw new HttpError(400, 'La descrizione può avere al massimo 1000 caratteri.');
+  return description.trim();
+}
+
+/** Accetta solo una data URL JPEG (il client ridimensiona e converte ogni foto in JPEG). */
+function parsePhoto(photo: unknown): Photo | undefined {
+  if (photo === undefined || photo === null || photo === '') return undefined;
+  const m = typeof photo === 'string' ? /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo) : null;
+  if (!m) throw new HttpError(400, 'Formato della foto non valido.');
+  if (m[1].length * 0.75 > MAX_PHOTO_BYTES) throw new HttpError(413, 'Foto troppo grande.');
+  return { mime: 'image/jpeg', base64: m[1] };
+}
+
+// shortcut: persistenza su un file JSON locale e foto su disco (un solo processo, nessuna concorrenza tra istanze);
+// passare a Supabase/Postgres + storage se l'app va pubblicata con più utenti reali.
 export function createReportStore(file: string) {
   let cache: Report[] | null = null;
   let queue = Promise.resolve();
+  const photoDir = join(dirname(file), 'photos');
+  // Bozze in memoria: l'interpretazione mostrata a chi segnala è la stessa che viene salvata, senza fidarsi del client.
+  const drafts = new Map<string, { description: string; interpretation: Interpretation; photo?: Photo; expires: number }>();
 
   async function all(): Promise<Report[]> {
     if (cache) return cache;
@@ -35,24 +59,43 @@ export function createReportStore(file: string) {
     return queue;
   }
 
+  async function createDraft(input: unknown, env: Env): Promise<ReportDraft> {
+    const { description, photo } = (input ?? {}) as Record<string, unknown>;
+    const text = parseDescription(description);
+    const img = parsePhoto(photo);
+    const now = Date.now();
+    for (const [id, d] of drafts) if (d.expires < now) drafts.delete(id);
+    if (drafts.size >= MAX_DRAFTS) drafts.delete(drafts.keys().next().value!);
+    const interpretation = await interpret(text, env, img);
+    const draftId = randomUUID();
+    drafts.set(draftId, { description: text, interpretation, photo: img, expires: now + DRAFT_TTL_MS });
+    return { draftId, interpretation };
+  }
+
   async function create(input: unknown, env: Env): Promise<Report> {
-    const { lat, lng, description, category } = (input ?? {}) as Record<string, unknown>;
+    const { lat, lng, description, category, draftId, answer } = (input ?? {}) as Record<string, unknown>;
     if (!inPisa(lat, lng)) throw new HttpError(400, 'Posizione non valida: seleziona un punto sulla mappa di Pisa.');
-    if (typeof description !== 'string' || description.trim().length < 10) {
-      throw new HttpError(400, 'Descrivi il problema con almeno 10 caratteri.');
-    }
-    if (description.length > 1000) throw new HttpError(400, 'La descrizione può avere al massimo 1000 caratteri.');
+    const text = parseDescription(description);
     if (category !== undefined && category !== null && category !== '' && !REPORT_CATEGORIES.includes(category as ReportCategory)) {
       throw new HttpError(400, 'Categoria non valida.');
     }
-    const text = description.trim();
     const reports = await all();
     // Protezione da doppio invio: stesso testo, stesso punto, meno di 2 minuti fa.
     const dup = reports.find((r) => r.description === text && Math.abs(r.lat - (lat as number)) < 5e-5
       && Math.abs(r.lng - (lng as number)) < 5e-5 && Date.now() - Date.parse(r.createdAt) < 120_000);
     if (dup) throw new HttpError(409, 'Questa segnalazione è appena stata inviata.');
 
-    const interpretation = await interpret(text, env);
+    const draft = typeof draftId === 'string' ? drafts.get(draftId) : undefined;
+    const fromDraft = draft && draft.expires >= Date.now() && draft.description === text ? draft : undefined;
+    const interpretation = fromDraft?.interpretation ?? await interpret(text, env);
+
+    let followUp: Report['followUp'];
+    if (answer !== undefined && answer !== null && answer !== '') {
+      const q = interpretation.question;
+      if (!q || typeof answer !== 'string' || ![...q.options, NOT_SURE].includes(answer)) throw new HttpError(400, 'Risposta non valida.');
+      followUp = { question: q.text, answer };
+    }
+
     const userCategory = category ? category as ReportCategory : null;
     const report: Report = {
       id: randomUUID(),
@@ -65,10 +108,23 @@ export function createReportStore(file: string) {
       status: 'unverified', // sempre: né l'invio né l'AI verificano una segnalazione
       source: 'user_report',
       interpretation,
+      hasPhoto: Boolean(fromDraft?.photo),
+      ...(followUp ? { followUp } : {}),
     };
+    if (fromDraft?.photo) {
+      await mkdir(photoDir, { recursive: true });
+      await writeFile(join(photoDir, `${report.id}.jpg`), Buffer.from(fromDraft.photo.base64, 'base64'));
+    }
+    if (typeof draftId === 'string') drafts.delete(draftId);
     reports.push(report);
     await persist();
     return report;
+  }
+
+  async function photo(id: string): Promise<Buffer> {
+    const report = (await all()).find((r) => r.id === id);
+    if (!report?.hasPhoto) throw new HttpError(404, 'Foto non trovata.');
+    return readFile(join(photoDir, `${report.id}.jpg`));
   }
 
   async function setStatus(id: string, status: unknown): Promise<Report> {
@@ -81,5 +137,5 @@ export function createReportStore(file: string) {
     return report;
   }
 
-  return { all, create, setStatus };
+  return { all, createDraft, create, photo, setStatus };
 }

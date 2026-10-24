@@ -44,12 +44,18 @@ export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 
 export type Severity = 'low' | 'medium' | 'high' | 'unknown';
 
+export interface FollowUpQuestion { text: string; options: string[] }
+
 export interface Interpretation {
   category: ReportCategory;
   obstacle: string | null;
   summary: string;
   severity: Severity;
   missing_info: string[];
+  /** Domanda proposta a chi segnala sull'informazione mancante più utile */
+  question: FollowUpQuestion | null;
+  /** Cosa mostra la foto allegata, secondo il modello (null se nessuna foto analizzata) */
+  photo_note: string | null;
   /** gemma = modello AI reale; fallback = regole a parole chiave (non AI) */
   engine: 'gemma' | 'fallback';
   model?: string;
@@ -69,7 +75,14 @@ export interface Report {
   statusUpdatedAt?: string;
   source: 'user_report';
   interpretation: Interpretation;
+  hasPhoto: boolean;
+  /** Risposta di chi segnala alla domanda dell'assistente: dato fornito dall'utente, non dall'AI */
+  followUp?: { question: string; answer: string };
 }
+
+export interface ReportDraft { draftId: string; interpretation: Interpretation }
+
+export const NOT_SURE = 'Non so';
 
 export interface RouteResult {
   /**

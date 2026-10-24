@@ -1,32 +1,50 @@
-import { REPORT_CATEGORIES, type Interpretation, type ReportCategory, type Severity } from '../shared/types.ts';
+import { REPORT_CATEGORIES, type FollowUpQuestion, type Interpretation, type ReportCategory, type Severity } from '../shared/types.ts';
 import type { Env } from './errors.ts';
+
+export const DEFAULT_GEMMA_MODEL = 'gemma-4-26b-a4b-it';
+
+export type Photo = { mime: string; base64: string };
 
 export function aiProvider(env: Env): { kind: 'gemma-ollama' | 'gemma-google' | 'fallback'; model?: string } {
   if (env.OLLAMA_URL && env.OLLAMA_MODEL) return { kind: 'gemma-ollama', model: env.OLLAMA_MODEL };
-  if (env.GEMINI_API_KEY) return { kind: 'gemma-google', model: env.GEMMA_MODEL || 'gemma-3-27b-it' };
+  if (env.GEMINI_API_KEY) return { kind: 'gemma-google', model: env.GEMMA_MODEL || DEFAULT_GEMMA_MODEL };
   return { kind: 'fallback' };
 }
 
-/** Interpreta una segnalazione. Non lancia mai: se l'AI manca o fallisce, usa il fallback a regole e lo dichiara. */
-export async function interpret(description: string, env: Env): Promise<Interpretation> {
+/**
+ * Assistente segnalazioni: struttura testo (+ foto facoltativa) e propone UNA domanda sull'informazione mancante più utile.
+ * Non lancia mai: se l'AI manca o fallisce usa il fallback a regole e lo dichiara.
+ */
+export async function interpret(description: string, env: Env, photo?: Photo): Promise<Interpretation> {
   const p = aiProvider(env);
-  if (p.kind === 'fallback') return fallbackInterpret(description, 'Servizio AI non configurato: classificazione automatica a parole chiave.');
+  const photoNote = photo ? ' La foto non è stata analizzata.' : '';
+  if (p.kind === 'fallback') return fallbackInterpret(description, `Servizio AI non configurato: classificazione automatica a parole chiave.${photoNote}`);
+  const call = (img?: Photo) => p.kind === 'gemma-ollama'
+    ? callOllama(env.OLLAMA_URL!, p.model!, buildPrompt(description, Boolean(img)), img)
+    : callGoogle(env.GEMINI_API_KEY!, p.model!, buildPrompt(description, Boolean(img)), img);
+  let note: string | undefined;
   try {
-    const raw = p.kind === 'gemma-ollama'
-      ? await callOllama(env.OLLAMA_URL!, p.model!, buildPrompt(description))
-      : await callGoogle(env.GEMINI_API_KEY!, p.model!, buildPrompt(description));
+    let raw: string;
+    try {
+      raw = await call(photo);
+    } catch (e) {
+      if (!photo) throw e;
+      // Se il modello rifiuta l'immagine, l'interpretazione del testo resta utile: riproviamo senza foto e lo diciamo.
+      raw = await call();
+      note = 'La foto non è stata analizzata dal modello.';
+    }
     const parsed = validateInterpretation(extractJson(raw));
-    if (parsed) return { ...parsed, engine: 'gemma', model: p.model };
-    return fallbackInterpret(description, 'Risposta AI non valida: classificazione automatica a parole chiave.');
+    // Una nota sulla foto è accettata solo se il modello ha davvero ricevuto la foto.
+    if (parsed) return { ...parsed, ...(photo && !note ? {} : { photo_note: null }), engine: 'gemma', model: p.model, ...(note ? { note } : {}) };
+    return fallbackInterpret(description, `Risposta AI non valida: classificazione automatica a parole chiave.${photoNote}`);
   } catch {
-    return fallbackInterpret(description, 'Servizio AI non disponibile: classificazione automatica a parole chiave.');
+    return fallbackInterpret(description, `Servizio AI non disponibile: classificazione automatica a parole chiave.${photoNote}`);
   }
 }
 
-export function buildPrompt(description: string): string {
-  // Gemma via Gemini API non supporta un system prompt separato: le istruzioni stanno nel messaggio utente.
-  return `Sei un assistente che struttura segnalazioni di barriere architettoniche per persone in sedia a rotelle.
-Leggi la segnalazione e rispondi SOLO con un oggetto JSON, senza testo aggiuntivo, con queste chiavi:
+export function buildPrompt(description: string, hasPhoto: boolean): string {
+  return `Sei l'assistente di AccessGo, che raccoglie segnalazioni di barriere architettoniche per persone in sedia a rotelle a Pisa.
+Leggi la segnalazione${hasPhoto ? ' e osserva la foto allegata' : ''} e rispondi SOLO con un oggetto JSON, senza testo aggiuntivo, con queste chiavi:
 - "category": una tra ${REPORT_CATEGORIES.map((c) => `"${c}"`).join(', ')}
   (steps=scale o gradini, kerb=cordolo, obstructed_sidewalk=marciapiede ostruito, uneven_surface=superficie irregolare,
   slope=pendenza, crossing=attraversamento, other=altro)
@@ -34,29 +52,50 @@ Leggi la segnalazione e rispondi SOLO con un oggetto JSON, senza testo aggiuntiv
 - "summary": riassunto in italiano, massimo 160 caratteri, senza aggiungere fatti non presenti nel testo
 - "severity": "low", "medium" o "high" SOLO se il testo lo dice esplicitamente, altrimenti "unknown"
 - "missing_info": elenco (max 4) di informazioni utili che mancano (es. altezza del gradino, se è temporaneo)
+- "question": UNA domanda breve (max 100 caratteri) per chiedere a chi segnala l'informazione mancante più utile
+  per una persona in sedia a rotelle, con "options": da 2 a 4 risposte brevi (max 30 caratteri). Formato:
+  {"text": "...", "options": ["...", "..."]}. Non includere "Non so": viene aggiunto dall'app.
+  Se "missing_info" non è vuoto, chiedi la più importante; usa null solo se non manca nulla di importante.
+${hasPhoto
+    ? `- "photo_note": cosa mostra la foto rispetto all'ostacolo, in una frase (max 160 caratteri), solo ciò che è chiaramente visibile.
+  Se la foto non mostra l'ostacolo descritto, dillo. Non identificare persone e non riportare targhe.`
+    : '- "photo_note": null'}
 Regole: non inventare indirizzi, coordinate, misure o gravità. Non dire mai che la segnalazione è verificata.
+La posizione è già indicata da chi segnala sulla mappa: non chiederla e non elencarla tra le informazioni mancanti.
 
 Segnalazione: """${description.replaceAll('"""', '"')}"""`;
 }
 
-async function callGoogle(key: string, model: string, prompt: string): Promise<string> {
+async function callGoogle(key: string, model: string, prompt: string, photo?: Photo): Promise<string> {
+  const parts = [
+    ...(photo ? [{ inline_data: { mime_type: photo.mime, data: photo.base64 } }] : []),
+    { text: prompt },
+  ];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1 } }),
-    signal: AbortSignal.timeout(20_000),
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      // Senza ragionamento esteso Gemma 4 risponde in ~5 s invece di ~20 s (misurato), con risposte equivalenti.
+      generationConfig: { temperature: 0.1, ...(model.startsWith('gemma-4') ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}) },
+    }),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`google ${res.status}`);
-  const json = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-  return json.candidates?.[0]?.content?.parts?.map((x) => x.text ?? '').join('') ?? '';
+  const json = await res.json() as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
+  // Gemma 4 può restituire parti di "ragionamento": teniamo solo la risposta.
+  return json.candidates?.[0]?.content?.parts?.filter((x) => !x.thought).map((x) => x.text ?? '').join('') ?? '';
 }
 
-async function callOllama(baseUrl: string, model: string, prompt: string): Promise<string> {
+async function callOllama(baseUrl: string, model: string, prompt: string, photo?: Photo): Promise<string> {
   const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], format: 'json', stream: false, options: { temperature: 0.1 } }),
-    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({
+      model, format: 'json', stream: false, options: { temperature: 0.1 },
+      messages: [{ role: 'user', content: prompt, ...(photo ? { images: [photo.base64] } : {}) }],
+    }),
+    signal: AbortSignal.timeout(90_000),
   });
   if (!res.ok) throw new Error(`ollama ${res.status}`);
   const json = await res.json() as { message?: { content?: string } };
@@ -72,6 +111,16 @@ export function extractJson(text: string): unknown {
 }
 
 const SEVERITIES: Severity[] = ['low', 'medium', 'high', 'unknown'];
+const str = (v: unknown, max: number) => typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null;
+
+function validateQuestion(q: unknown): FollowUpQuestion | null {
+  if (!q || typeof q !== 'object') return null;
+  const { text, options } = q as Record<string, unknown>;
+  const t = str(text, 140);
+  if (!t || !Array.isArray(options)) return null;
+  const opts = [...new Set(options.map((o) => str(o, 40)).filter((o): o is string => o !== null && !/^non (lo )?so\.?$|^non sono sicur/i.test(o)))].slice(0, 4);
+  return opts.length >= 2 ? { text: t, options: opts } : null;
+}
 
 /**
  * Valida l'output del modello. Restituisce null se la categoria o il riassunto non sono validi.
@@ -81,15 +130,18 @@ export function validateInterpretation(x: unknown): Omit<Interpretation, 'engine
   if (!x || typeof x !== 'object') return null;
   const o = x as Record<string, unknown>;
   if (!REPORT_CATEGORIES.includes(o.category as ReportCategory)) return null;
-  if (typeof o.summary !== 'string' || !o.summary.trim()) return null;
+  const summary = str(o.summary, 300);
+  if (!summary) return null;
   return {
     category: o.category as ReportCategory,
-    obstacle: typeof o.obstacle === 'string' && o.obstacle.trim() ? o.obstacle.trim().slice(0, 60) : null,
-    summary: o.summary.trim().slice(0, 300),
+    obstacle: str(o.obstacle, 60),
+    summary,
     severity: SEVERITIES.includes(o.severity as Severity) ? o.severity as Severity : 'unknown',
     missing_info: Array.isArray(o.missing_info)
-      ? o.missing_info.filter((m): m is string => typeof m === 'string' && m.trim() !== '').slice(0, 4).map((m) => m.slice(0, 120))
+      ? o.missing_info.map((m) => str(m, 120)).filter((m): m is string => m !== null).slice(0, 4)
       : [],
+    question: validateQuestion(o.question),
+    photo_note: str(o.photo_note, 200),
   };
 }
 
@@ -112,10 +164,15 @@ export function fallbackInterpret(description: string, note: string): Interpreta
     const m = re.exec(text);
     if (m) { category = cat; obstacle = m[0]; break; }
   }
+  const needsHeight = (category === 'steps' || category === 'kerb') && !/\d+\s*(cm|centimetri|m\b|metri)/.test(text);
+  const needsDuration = !/(temporane|permanent|sempre|da (giorni|mesi|anni)|oggi|cantiere)/.test(text);
   const missing: string[] = [];
-  if ((category === 'steps' || category === 'kerb') && !/\d+\s*(cm|centimetri|m\b|metri)/.test(text)) missing.push("Altezza dell'ostacolo");
-  if (!/(temporane|permanent|sempre|da (giorni|mesi|anni)|oggi|cantiere)/.test(text)) missing.push("Se l'ostacolo è temporaneo o permanente");
+  if (needsHeight) missing.push("Altezza dell'ostacolo");
+  if (needsDuration) missing.push("Se l'ostacolo è temporaneo o permanente");
   if (!/(alternativ|aggir|altro lato|dall'altra parte)/.test(text)) missing.push('Se esiste un passaggio alternativo vicino');
+  const question: FollowUpQuestion | null = needsHeight
+    ? { text: "Quanto è alto l'ostacolo, più o meno?", options: ['Meno di 3 cm', 'Tra 3 e 10 cm', 'Più di 10 cm'] }
+    : needsDuration ? { text: "L'ostacolo è temporaneo o permanente?", options: ['Temporaneo', 'Permanente'] } : null;
   const clean = description.trim().replace(/\s+/g, ' ');
   return {
     category, obstacle,
@@ -123,6 +180,8 @@ export function fallbackInterpret(description: string, note: string): Interpreta
     summary: clean.length > 160 ? `${clean.slice(0, 157)}…` : clean,
     severity: 'unknown',
     missing_info: missing,
+    question,
+    photo_note: null,
     engine: 'fallback',
     note,
   };

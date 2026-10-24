@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { VERIFICATION_STATUSES, type OsmFeature, type Report, type ServerStatus, type VerificationStatus } from '../../shared/types.ts';
+import {
+  VERIFICATION_STATUSES, type Interpretation as InterpretationData, type OsmFeature, type Report, type ReportCategory, type ServerStatus, type VerificationStatus,
+} from '../../shared/types.ts';
 import { api } from '../api.ts';
 import { CATEGORY_LABEL, CERTAINTY_HINT, CERTAINTY_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import type { Selection } from './MapView.tsx';
@@ -14,21 +16,31 @@ const TAG_LABEL: Record<string, string> = {
 
 const dateFmt = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
 
-export function Interpretation({ report }: { report: Report }) {
-  const i = report.interpretation;
+/** Interpretazione dell'AI (o del fallback a regole), con la risposta di chi segnala tenuta separata. */
+export function Interpretation({ interpretation: i, category, categorySource, followUp }: {
+  interpretation: InterpretationData;
+  category?: ReportCategory;
+  categorySource?: Report['categorySource'];
+  followUp?: Report['followUp'];
+}) {
   return (
     <div className="interp">
       <p className="interp__engine">
         {i.engine === 'gemma'
-          ? <>Interpretata dall'AI <strong>{i.model}</strong></>
+          ? <>Interpretata dall'AI <strong>{i.model}</strong>{i.note ? ` — ${i.note}` : ''}</>
           : <><strong>Classificazione a regole</strong> (non AI){i.note ? ` — ${i.note}` : ''}</>}
       </p>
       <dl className="kv">
         <dt>Categoria</dt>
-        <dd>{CATEGORY_LABEL[report.category]} <span className="muted">({report.categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span></dd>
+        <dd>
+          {CATEGORY_LABEL[category ?? i.category]}{' '}
+          <span className="muted">({categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span>
+        </dd>
         {i.obstacle && <><dt>Ostacolo</dt><dd>{i.obstacle}</dd></>}
         <dt>Sintesi</dt><dd>{i.summary}</dd>
         <dt>Gravità</dt><dd>{SEVERITY_LABEL[i.severity]}</dd>
+        {i.photo_note && <><dt>Nella foto</dt><dd>{i.photo_note}</dd></>}
+        {followUp && <><dt>{followUp.question}</dt><dd>{followUp.answer} <span className="muted">(risposta di chi segnala)</span></dd></>}
       </dl>
       {i.missing_info.length > 0 && (
         <>
@@ -63,7 +75,9 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
       )}
       <p className="interp__sub">Descrizione originale</p>
       <blockquote className="quote">{report.description}</blockquote>
-      <Interpretation report={report} />
+      {report.hasPhoto && <img className="report-photo" src={`/api/reports/${report.id}/photo`} alt="Foto dell'ostacolo allegata da chi segnala" />}
+      <Interpretation interpretation={report.interpretation} category={report.category}
+        categorySource={report.categorySource} followUp={report.followUp} />
       <dl className="kv">
         <dt>Inviata</dt><dd>{dateFmt.format(new Date(report.createdAt))}</dd>
         {report.statusUpdatedAt && <><dt>Stato aggiornato</dt><dd>{dateFmt.format(new Date(report.statusUpdatedAt))}</dd></>}

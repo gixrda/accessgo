@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LatLngTuple, OsmFeature, Report } from '../shared/types.ts';
-import { analyzeRoute, formatDistance, formatDuration } from '../src/lib/analysis.ts';
+import { analyzeRoute, formatDistance, formatDuration, routeObstacles } from '../src/lib/analysis.ts';
 
 // Percorso rettilineo est-ovest di ~400 m a Pisa. 1e-5 gradi di latitudine ≈ 1,1 m.
 const LAT = 43.716;
@@ -15,7 +15,8 @@ function line(id: string, coords: LatLngTuple[], certainty: OsmFeature['certaint
 function report(id: string, lat: number, lng: number, status: Report['status'] = 'unverified'): Report {
   return {
     id, lat, lng, description: 'gradino alto', category: 'steps', categorySource: 'interpretation', createdAt: '', status, source: 'user_report',
-    interpretation: { category: 'steps', obstacle: null, summary: '', severity: 'unknown', missing_info: [], engine: 'fallback' },
+    interpretation: { category: 'steps', obstacle: null, summary: '', severity: 'unknown', missing_info: [], question: null, photo_note: null, engine: 'fallback' },
+    hasPhoto: false,
   };
 }
 
@@ -54,6 +55,19 @@ describe('analyzeRoute', () => {
   it('include le segnalazioni vicine non risolte', () => {
     const a = analyzeRoute(route, [], [report('near', LAT + 0.0001, 10.402), report('done', LAT, 10.403, 'resolved'), report('far', LAT + 0.001, 10.402)]);
     expect(a.reports.map((r) => r.id)).toEqual(['near']);
+  });
+
+  it('ordina ostacoli e segnalazioni per distanza dalla partenza', () => {
+    const a = analyzeRoute(route, [
+      point('lontano', LAT, 10.404, 'known_obstacle'),
+      point('vicino', LAT, 10.4005, 'known_obstacle'),
+      line('scale', [[LAT, 10.402], [LAT, 10.4025]], 'known_obstacle'),
+    ], [report('segnalazione', LAT + 0.00005, 10.403)]);
+    const order = routeObstacles(a);
+    expect(order.map((o) => o.type === 'feature' ? o.feature.id : o.report.id)).toEqual(['vicino', 'scale', 'segnalazione', 'lontano']);
+    // 0,0005° di longitudine a questa latitudine ≈ 40 m
+    expect(order[0].alongM).toBeGreaterThan(35);
+    expect(order[0].alongM).toBeLessThan(45);
   });
 
   it('gestisce un percorso degenere', () => {

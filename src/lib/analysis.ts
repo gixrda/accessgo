@@ -9,7 +9,14 @@ export interface RouteAnalysis {
   reports: Report[];
   /** Quota (0..1) del percorso vicina a tratti OSM con dati su superficie, pendenza, larghezza o accessibilità */
   coverage: number;
+  /** Distanza dalla partenza (m) di ogni elemento trovato, per id di feature o segnalazione */
+  alongM: Record<string, number>;
 }
+
+/** Un ostacolo noto o una segnalazione sul percorso, nell'ordine in cui si incontra. */
+export type RouteObstacle =
+  | { type: 'feature'; feature: OsmFeature; alongM: number }
+  | { type: 'report'; report: Report; alongM: number };
 
 type XY = [number, number];
 
@@ -44,14 +51,37 @@ function lineLength(line: XY[]): number {
   return len;
 }
 
-function sample(line: XY[], step: number): XY[] {
-  const out: XY[] = line.length ? [line[0]] : [];
+/** Campiona una linea ogni ~step metri; restituisce anche la distanza dall'inizio di ogni campione. */
+function sample(line: XY[], step: number): { pts: XY[]; along: number[] } {
+  const pts: XY[] = line.length ? [line[0]] : [];
+  const along = line.length ? [0] : [];
+  let done = 0;
   for (let i = 1; i < line.length; i++) {
     const [a, b] = [line[i - 1], line[i]];
-    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
-    for (let k = 1; k <= n; k++) out.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(1, Math.ceil(len / step));
+    for (let k = 1; k <= n; k++) {
+      pts.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+      along.push(done + (len * k) / n);
+    }
+    done += len;
   }
-  return out;
+  return { pts, along };
+}
+
+/** Distanza dalla partenza del punto del percorso più vicino a p. */
+function alongRoute(p: XY, line: XY[]): number {
+  let best = Infinity, at = 0, done = 0;
+  for (let i = 1; i < line.length; i++) {
+    const [a, b] = [line[i - 1], line[i]];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+    const d = Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    if (d < best) { best = d; at = done + t * Math.sqrt(len2); }
+    done += Math.sqrt(len2);
+  }
+  return at;
 }
 
 /**
@@ -60,11 +90,12 @@ function sample(line: XY[], step: number): XY[] {
  * (o metà della sua lunghezza, se più corta): così un sentiero che si limita a incrociare il percorso non viene contato.
  */
 export function analyzeRoute(route: LatLngTuple[], features: OsmFeature[], reports: Report[]): RouteAnalysis {
-  const empty: RouteAnalysis = { known: [], possible: [], positive: [], unknown: [], reports: [], coverage: 0 };
+  const empty: RouteAnalysis = { known: [], possible: [], positive: [], unknown: [], reports: [], coverage: 0, alongM: {} };
   if (route.length < 2) return empty;
   const xy = projector(route[0][0]);
   const routeXY = route.map(xy);
-  const samples = sample(routeXY, STEP_M);
+  const { pts: samples, along: sampleAlong } = sample(routeXY, STEP_M);
+  const alongM: Record<string, number> = {};
   const covered = new Array<boolean>(samples.length).fill(false);
 
   const xs = routeXY.map((p) => p[0]), ys = routeXY.map((p) => p[1]);
@@ -80,6 +111,7 @@ export function analyzeRoute(route: LatLngTuple[], features: OsmFeature[], repor
       const p = xy(f.geometry.coords);
       if (outside([p])) continue;
       onRoute = distToLine(p, routeXY) <= POINT_M;
+      if (onRoute) alongM[f.id] = alongRoute(p, routeXY);
     } else {
       const line = f.geometry.coords.map(xy);
       const lx = line.map((p) => p[0]), ly = line.map((p) => p[1]);
@@ -88,7 +120,10 @@ export function analyzeRoute(route: LatLngTuple[], features: OsmFeature[], repor
       samples.forEach((s, i) => { if (distToLine(s, line) <= LINE_M) near.push(i); });
       // Un incrocio perpendicolare copre al massimo ~2 campioni (10 m): serve una sovrapposizione maggiore.
       onRoute = near.length * STEP_M >= Math.min(15, lineLength(line) / 2);
-      if (onRoute) for (const i of near) covered[i] = true;
+      if (onRoute) {
+        for (const i of near) covered[i] = true;
+        alongM[f.id] = sampleAlong[near[0]];
+      }
     }
     if (!onRoute) continue;
     if (f.certainty === 'known_obstacle') result.known.push(f);
@@ -97,8 +132,17 @@ export function analyzeRoute(route: LatLngTuple[], features: OsmFeature[], repor
     else if (f.geometry.type === 'point') result.unknown.push(f);
   }
   result.reports = reports.filter((r) => r.status !== 'resolved' && distToLine(xy([r.lat, r.lng]), routeXY) <= REPORT_M);
+  for (const r of result.reports) alongM[r.id] = alongRoute(xy([r.lat, r.lng]), routeXY);
   result.coverage = covered.filter(Boolean).length / samples.length;
-  return result;
+  return { ...result, alongM };
+}
+
+/** Ostacoli noti e segnalazioni sul percorso, in ordine di percorrenza. */
+export function routeObstacles(a: RouteAnalysis): RouteObstacle[] {
+  return [
+    ...a.known.map((feature): RouteObstacle => ({ type: 'feature', feature, alongM: a.alongM[feature.id] ?? 0 })),
+    ...a.reports.map((report): RouteObstacle => ({ type: 'report', report, alongM: a.alongM[report.id] ?? 0 })),
+  ].sort((x, y) => x.alongM - y.alongM);
 }
 
 export function formatDistance(m: number): string {

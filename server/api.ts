@@ -61,7 +61,15 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
         return true;
       }
       if (method === 'GET' && path === '/api/reports') return send(res, 200, await reports.all());
+      if (method === 'POST' && path === '/api/reports/draft') return send(res, 200, await reports.createDraft(await body(req, PHOTO_BODY), env));
       if (method === 'POST' && path === '/api/reports') return send(res, 201, await reports.create(await body(req), env));
+      const photo = /^\/api\/reports\/([\w-]+)\/photo$/.exec(path);
+      if (method === 'GET' && photo) {
+        const img = await reports.photo(photo[1]);
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=3600' });
+        res.end(img);
+        return true;
+      }
 
       const m = /^\/api\/reports\/([\w-]+)$/.exec(path);
       if (method === 'PATCH' && m) {
@@ -97,12 +105,14 @@ function send(res: ServerResponse, status: number, data: unknown): true {
   return true;
 }
 
-async function body(req: IncomingMessage): Promise<unknown> {
+const PHOTO_BODY = 2_200_000; // foto JPEG fino a 1,5 MB in base64
+
+async function body(req: IncomingMessage, limit = 16_384): Promise<unknown> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 16_384) throw new HttpError(413, 'Richiesta troppo grande.');
+    if (size > limit) throw new HttpError(413, 'Richiesta troppo grande.');
     chunks.push(chunk as Buffer);
   }
   if (!chunks.length) return null;

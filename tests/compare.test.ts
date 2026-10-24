@@ -5,7 +5,7 @@ import { formatDistance } from '../src/lib/analysis.ts';
 import { compareRoutes, comparisonVerdict } from '../src/lib/compare.ts';
 
 const f = (id: string): OsmFeature => ({ id, source: 'osm', kind: 'steps', certainty: 'known_obstacle', scope: 'path', label: 'Scale', geometry: { type: 'point', coords: [43.7, 10.4] }, tags: {} });
-const a = (known: OsmFeature[], possible: OsmFeature[] = []): RouteAnalysis => ({ known, possible, positive: [], unknown: [], reports: [], coverage: 0.5 });
+const a = (known: OsmFeature[], possible: OsmFeature[] = []): RouteAnalysis => ({ known, possible, positive: [], unknown: [], reports: [], coverage: 0.5, alongM: {} });
 
 describe('compareRoutes', () => {
   it('trova gli ostacoli evitati e il costo in distanza', () => {

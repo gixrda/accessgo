@@ -184,6 +184,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 }
 .group li button:hover { background: var(--bg); }
 
+.obstacles { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--known); border-radius: var(--radius); background: #fdf1ea; }
+.obstacles__title { font-size: 1rem; color: #7a3000; }
+.obstacles__list { list-style: none; margin: 0; padding: 0; }
+.obstacles__list button {
+  width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 6px 4px;
+  background: none; border: 0; border-radius: 6px; text-align: left; cursor: pointer; font-size: 0.92rem;
+}
+.obstacles__list button:hover { background: rgba(255, 255, 255, 0.7); }
+.obstacles__what { flex: 1; }
+.obstacles__where { color: var(--ink-2); white-space: nowrap; font-size: 0.85rem; }
+.route-num {
+  display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--ink); color: #fff; font: 700 12px/1 var(--font); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
 .compare { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); }
 .compare__title { font-size: 1rem; }
 .compare__table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -195,6 +209,15 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .compare__verdict.is-strong { font-weight: 700; }
 .swatch { display: inline-block; width: 22px; height: 0; margin-right: 8px; vertical-align: middle; border-top: 5px solid var(--primary); }
 .swatch--foot { border-top: 4px dotted #3b4350; }
+
+.file { align-self: flex-start; cursor: pointer; }
+.file:focus-within { outline: 3px solid var(--primary); outline-offset: 2px; }
+.photo { display: flex; align-items: flex-end; gap: 10px; }
+.photo img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.report-photo { width: 100%; max-height: 260px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
+.question { border: 1px solid var(--primary); background: var(--primary-tint); border-radius: var(--radius); padding: 12px 14px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.question__text { float: left; width: 100%; padding: 0; font-weight: 700; }
+.question .btn--ghost { background: #fff; }
 
 /* ---------- Stato segnalazioni ---------- */
 .status {

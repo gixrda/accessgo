@@ -1,5 +1,5 @@
 import type {
-  GeocodeResult, OsmDataset, Report, ReportCategory, RouteResult, ServerStatus, VerificationStatus,
+  GeocodeResult, OsmDataset, Report, ReportCategory, ReportDraft, RouteResult, ServerStatus, VerificationStatus,
 } from '../shared/types.ts';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -20,7 +20,9 @@ export const api = {
   status: () => request<ServerStatus>('/api/status'),
   osm: () => request<OsmDataset>('/api/osm'),
   reports: () => request<Report[]>('/api/reports'),
-  createReport: (body: Point & { description: string; category?: ReportCategory }) =>
+  draftReport: (body: { description: string; photo?: string }) =>
+    request<ReportDraft>('/api/reports/draft', { method: 'POST', body: JSON.stringify(body) }),
+  createReport: (body: Point & { description: string; category?: ReportCategory; draftId?: string; answer?: string }) =>
     request<Report>('/api/reports', { method: 'POST', body: JSON.stringify(body) }),
   setStatus: (id: string, status: VerificationStatus, token: string) =>
     request<Report>(`/api/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'x-admin-token': token } }),
