@@ -29,7 +29,7 @@ export const api = {
     request<Report>('/api/reports', { method: 'POST', body: JSON.stringify(body) }),
   setStatus: (id: string, status: VerificationStatus, token: string) =>
     request<Report>(`/api/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }), headers: { 'x-admin-token': token } }),
-  route: (from: Point, to: Point, profile: 'wheelchair' | 'foot' = 'wheelchair', signal?: AbortSignal) =>
-    request<RouteResult>('/api/route', { method: 'POST', body: JSON.stringify({ from, to, profile }), signal }),
+  route: (from: Point, to: Point, profile: 'wheelchair' | 'foot' = 'wheelchair', signal?: AbortSignal, via: Point[] = []) =>
+    request<RouteResult>('/api/route', { method: 'POST', body: JSON.stringify({ from, to, profile, ...(via.length ? { via } : {}) }), signal }),
   geocode: (q: string, signal?: AbortSignal) => request<GeocodeResult[]>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal }),
 };

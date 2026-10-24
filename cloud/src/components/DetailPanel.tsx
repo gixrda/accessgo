@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { VERIFICATION_STATUSES, type Interpretation as InterpretationData, type OsmFeature, type Report, type ReportCategory, type ServerStatus, type VerificationStatus } from '../../shared/types.ts';
+import { VERIFICATION_STATUSES, type Interpretation as InterpretationData, type InterpretationCategory, type OsmFeature, type Report, type ServerStatus, type VerificationStatus } from '../../shared/types.ts';
 import { api } from '../api.ts';
-import { CATEGORY_LABEL, CERTAINTY_HINT, CERTAINTY_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
+import { CATEGORY_LABEL, INTERPRETATION_LABEL, CERTAINTY_HINT, CERTAINTY_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import type { Selection } from './MapView.tsx';
 
 const CERTAINTY_CLASS = { known_obstacle: 'known', possible_issue: 'possible', positive_info: 'positive', info: 'info' } as const;
@@ -15,7 +15,7 @@ const TAG_LABEL: Record<string, string> = {
 const dateFmt = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
 
 export function Interpretation({ interpretation: i, category = i.category, categorySource = 'interpretation' }: {
-  interpretation: InterpretationData; category?: ReportCategory; categorySource?: Report['categorySource'];
+  interpretation: InterpretationData; category?: InterpretationCategory; categorySource?: Report['categorySource'];
 }) {
   return (
     <div className="interp">
@@ -26,11 +26,17 @@ export function Interpretation({ interpretation: i, category = i.category, categ
       </p>
       <dl className="kv">
         <dt>Categoria</dt>
-        <dd>{CATEGORY_LABEL[category]} <span className="muted">({categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span></dd>
+        <dd>{INTERPRETATION_LABEL[category]} <span className="muted">({categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span></dd>
         {i.obstacle && <><dt>Ostacolo</dt><dd>{i.obstacle}</dd></>}
         <dt>Sintesi</dt><dd>{i.summary}</dd>
         <dt>Gravità</dt><dd>{SEVERITY_LABEL[i.severity]}</dd>
       </dl>
+      {i.category === 'no_obstacle' && <p className="notice notice--info">
+        Il testo dichiara l’assenza o la rimozione dell’ostacolo. Non conferma l’accessibilità della strada e non modifica le segnalazioni esistenti.
+      </p>}
+      {i.category === 'unclear' && <p className="notice notice--info">
+        Il tipo di ostacolo non è chiaro. Aggiungi dettagli oppure scegli manualmente una categoria prima di pubblicare.
+      </p>}
       {i.missing_info.length > 0 && (
         <>
           <p className="interp__sub">Informazioni mancanti</p>

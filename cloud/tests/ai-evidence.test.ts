@@ -60,8 +60,34 @@ describe('grounding interpretations in the report', () => {
   });
 
   it('allows an explicitly unclear report without invented category evidence', () => {
-    expect(validateInterpretation(report({ category: 'other', evidence: null, obstacle: null, summary: 'Problema da precisare.' }), 'C’è un problema.'))
-      .toMatchObject({ category: 'other', obstacle: null });
+    expect(validateInterpretation(report({ category: 'unclear', evidence: null, obstacle: null, summary: 'Problema da precisare.' }), 'C’è un problema.'))
+      .toMatchObject({ category: 'unclear', obstacle: null });
+  });
+
+  it('requires a concrete obstacle and source evidence for other, retaining compatibility when provided', () => {
+    const source = 'Il portone è troppo pesante da aprire.';
+    expect(validateInterpretation(report({ category: 'other', evidence: 'portone è troppo pesante', obstacle: 'Portone pesante', summary: 'Portone difficile da aprire.' }), source))
+      .toMatchObject({ category: 'other', obstacle: 'Portone pesante' });
+    expect(validateInterpretation(report({ category: 'other', evidence: null, obstacle: null }), source)).toBeNull();
+    expect(validateInterpretation(report({ category: 'other', evidence: 'non riesco a passare', obstacle: 'Ostacolo non specificato' }), 'Qui non riesco a passare.')).toBeNull();
+  });
+
+  it('represents explicit absence without an obstacle, severity, questions, or safety conclusion', () => {
+    const source = 'Non ci sono più gradini.';
+    const parsed = validateInterpretation(report({ category: 'no_obstacle', evidence: source, summary: 'Il testo dichiara che i gradini non sono più presenti.', obstacle: 'Gradino', severity: 'high' }), source);
+    expect(parsed).toMatchObject({ category: 'no_obstacle', obstacle: null, severity: 'unknown', missing_info: [] });
+    expect(parsed).not.toHaveProperty('status');
+    expect(validateInterpretation(report({ category: 'no_obstacle', evidence: source, summary: 'La strada è sicura.' }), source)).toBeNull();
+  });
+
+  it('rejects invented absence and a present-obstacle classification grounded only in negated mentions', () => {
+    expect(validateInterpretation(report({ category: 'no_obstacle', evidence: 'gradino alto', summary: 'Nessun ostacolo.' }), SOURCE)).toBeNull();
+    expect(validateInterpretation(report({ evidence: 'gradini' }), 'Non ci sono più gradini.')).toBeNull();
+  });
+
+  it('normalizes unclear to a neutral result with a request for clarification', () => {
+    expect(validateInterpretation(report({ category: 'unclear', evidence: null, obstacle: 'Gradino', severity: 'high', missing_info: [] }), 'Non riesco a passare qui.'))
+      .toMatchObject({ category: 'unclear', obstacle: null, severity: 'unknown', missing_info: [expect.stringMatching(/Descrivi/)] });
   });
 
   it('does not convert reported width into step height merely because the number exists', () => {

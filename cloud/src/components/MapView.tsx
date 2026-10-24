@@ -11,7 +11,7 @@ import { observeMapSize } from '../lib/mapResize.ts';
 export type Layers = Record<'known' | 'possible' | 'positive' | 'info' | 'places' | 'reports', boolean>;
 export type Selection = { type: 'feature'; feature: OsmFeature } | { type: 'report'; report: Report } | null;
 export type Focus = { coords: LatLngTuple[]; nonce: number } | null;
-export type PickMode = 'from' | 'to' | 'report' | null;
+export type PickMode = 'from' | 'to' | 'report' | `via:${string}` | null;
 type Place = { lat: number; lng: number; label: string };
 
 interface Props {
@@ -25,6 +25,7 @@ interface Props {
   compareRoute: RouteResult | null;
   from: Place | null;
   to: Place | null;
+  via?: { id: string; place: Place | null }[];
   reportPoint: { lat: number; lng: number } | null;
   userPos: { lat: number; lng: number } | null;
   pickMode: PickMode;
@@ -61,7 +62,7 @@ function reportIcon(r: Report, selected: boolean): L.DivIcon {
     [34, 42], [17, 40]);
 }
 
-const endpointIcon = (letter: 'A' | 'B') =>
+const endpointIcon = (letter: string) =>
   divIcon(`end-${letter}`, `<span class="endpoint endpoint--${letter}">${letter}</span>`, [32, 32], [16, 16]);
 const draftIcon = divIcon('draft', `<span class="pin pin--draft">${iconSvg('report', 16)}</span>`, [34, 42], [17, 40]);
 
@@ -212,7 +213,10 @@ export function MapView(p: Props) {
 
       {p.reportPoint && <Marker position={[p.reportPoint.lat, p.reportPoint.lng]} icon={draftIcon} keyboard={false} zIndexOffset={900} title="Posizione della nuova segnalazione" />}
       {p.from && <Marker position={[p.from.lat, p.from.lng]} icon={endpointIcon('A')} keyboard={false} zIndexOffset={1000} title={`Partenza: ${p.from.label}`} />}
-      {p.to && <Marker position={[p.to.lat, p.to.lng]} icon={endpointIcon('B')} keyboard={false} zIndexOffset={1000} title={`Destinazione: ${p.to.label}`} />}
+      {(p.via ?? []).map((stop, index) => stop.place && <Marker key={stop.id}
+        position={[stop.place.lat, stop.place.lng]} icon={endpointIcon(String.fromCharCode(66 + index))}
+        keyboard={false} zIndexOffset={1000} title={`Tappa ${index + 1}: ${stop.place.label}`} />)}
+      {p.to && <Marker position={[p.to.lat, p.to.lng]} icon={endpointIcon(String.fromCharCode(66 + (p.via?.length ?? 0)))} keyboard={false} zIndexOffset={1000} title={`Destinazione: ${p.to.label}`} />}
       {p.userPos && (
         <CircleMarker center={[p.userPos.lat, p.userPos.lng]} radius={8} interactive={false}
           pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#0B5CAD', fillOpacity: 1 }} />

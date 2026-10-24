@@ -1,0 +1,651 @@
+{
+  "code": "Ok",
+  "routes": [
+    {
+      "distance": 1210.528,
+      "duration": 1144.108,
+      "geometry": {
+        "coordinates": [
+          [
+            10.397072,
+            43.722934
+          ],
+          [
+            10.39679,
+            43.722903
+          ],
+          [
+            10.396767,
+            43.7229
+          ],
+          [
+            10.396749,
+            43.722893
+          ],
+          [
+            10.396739,
+            43.722881
+          ],
+          [
+            10.396607,
+            43.722573
+          ],
+          [
+            10.396531,
+            43.722488
+          ],
+          [
+            10.396533,
+            43.722409
+          ],
+          [
+            10.396758,
+            43.722413
+          ],
+          [
+            10.396923,
+            43.722416
+          ],
+          [
+            10.397028,
+            43.722416
+          ],
+          [
+            10.397282,
+            43.722406
+          ],
+          [
+            10.397702,
+            43.722363
+          ],
+          [
+            10.397742,
+            43.722356
+          ],
+          [
+            10.397911,
+            43.722334
+          ],
+          [
+            10.397711,
+            43.722239
+          ],
+          [
+            10.397605,
+            43.721806
+          ],
+          [
+            10.397595,
+            43.72165
+          ],
+          [
+            10.397632,
+            43.721347
+          ],
+          [
+            10.397662,
+            43.721238
+          ],
+          [
+            10.397747,
+            43.721032
+          ],
+          [
+            10.397769,
+            43.720955
+          ],
+          [
+            10.39778,
+            43.720894
+          ],
+          [
+            10.3978,
+            43.720733
+          ],
+          [
+            10.397792,
+            43.720199
+          ],
+          [
+            10.397789,
+            43.720173
+          ],
+          [
+            10.397772,
+            43.720035
+          ],
+          [
+            10.39776,
+            43.719912
+          ],
+          [
+            10.397627,
+            43.71991
+          ],
+          [
+            10.397558,
+            43.719908
+          ],
+          [
+            10.397482,
+            43.719902
+          ],
+          [
+            10.397399,
+            43.719889
+          ],
+          [
+            10.397356,
+            43.719882
+          ],
+          [
+            10.3974,
+            43.719688
+          ],
+          [
+            10.397356,
+            43.719882
+          ],
+          [
+            10.397399,
+            43.719889
+          ],
+          [
+            10.397482,
+            43.719902
+          ],
+          [
+            10.397558,
+            43.719908
+          ],
+          [
+            10.397627,
+            43.71991
+          ],
+          [
+            10.39776,
+            43.719912
+          ],
+          [
+            10.397788,
+            43.719911
+          ],
+          [
+            10.398291,
+            43.719903
+          ],
+          [
+            10.398782,
+            43.719857
+          ],
+          [
+            10.398856,
+            43.719841
+          ],
+          [
+            10.398914,
+            43.719821
+          ],
+          [
+            10.399141,
+            43.719739
+          ],
+          [
+            10.3994,
+            43.719658
+          ],
+          [
+            10.399513,
+            43.719636
+          ],
+          [
+            10.399621,
+            43.71962
+          ],
+          [
+            10.399792,
+            43.7196
+          ],
+          [
+            10.399977,
+            43.719551
+          ],
+          [
+            10.400136,
+            43.719429
+          ],
+          [
+            10.400012,
+            43.719186
+          ],
+          [
+            10.399971,
+            43.719068
+          ],
+          [
+            10.399893,
+            43.718134
+          ],
+          [
+            10.399892,
+            43.718113
+          ],
+          [
+            10.39987,
+            43.71779
+          ],
+          [
+            10.399868,
+            43.717711
+          ],
+          [
+            10.400369,
+            43.717614
+          ],
+          [
+            10.40045,
+            43.717535
+          ],
+          [
+            10.40054,
+            43.717519
+          ],
+          [
+            10.40071,
+            43.717489
+          ],
+          [
+            10.40076,
+            43.71749
+          ],
+          [
+            10.400936,
+            43.717374
+          ],
+          [
+            10.401027,
+            43.71728
+          ],
+          [
+            10.401126,
+            43.717217
+          ],
+          [
+            10.401241,
+            43.71717
+          ],
+          [
+            10.401267,
+            43.717159
+          ],
+          [
+            10.401498,
+            43.717088
+          ],
+          [
+            10.401402,
+            43.716892
+          ],
+          [
+            10.401319,
+            43.716708
+          ],
+          [
+            10.401326,
+            43.716676
+          ],
+          [
+            10.401275,
+            43.716531
+          ],
+          [
+            10.40126,
+            43.716489
+          ],
+          [
+            10.401247,
+            43.716445
+          ],
+          [
+            10.401254,
+            43.716444
+          ]
+        ],
+        "type": "LineString"
+      },
+      "legs": [
+        {
+          "distance": 530.059,
+          "steps": [
+            {
+              "distance": 75.205,
+              "maneuver": {
+                "instruction": "Cammina verso ovest su Piazza del Duomo.",
+                "type": "depart",
+                "bearing_after": 261,
+                "bearing_before": 0,
+                "location": [
+                  10.397072,
+                  43.722934
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 0
+                }
+              ]
+            },
+            {
+              "distance": 9.0,
+              "maneuver": {
+                "modifier": "slight left",
+                "instruction": "Mantieni la sinistra per rimanere su Piazza del Duomo.",
+                "type": "fork",
+                "bearing_after": 179,
+                "bearing_before": 213,
+                "location": [
+                  10.396531,
+                  43.722488
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 6
+                }
+              ]
+            },
+            {
+              "distance": 111.0,
+              "maneuver": {
+                "modifier": "left",
+                "instruction": "Svolta a sinistra per rimanere su Piazza del Duomo.",
+                "type": "continue",
+                "bearing_after": 89,
+                "bearing_before": 179,
+                "location": [
+                  10.396533,
+                  43.722409
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 7
+                }
+              ]
+            },
+            {
+              "distance": 19.0,
+              "maneuver": {
+                "modifier": "sharp right",
+                "instruction": "Fai un curva a gomito a destra verso Piazza Arcivescovado.",
+                "type": "turn",
+                "bearing_after": 237,
+                "bearing_before": 100,
+                "location": [
+                  10.397911,
+                  43.722334
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 14
+                }
+              ]
+            },
+            {
+              "distance": 261.0,
+              "maneuver": {
+                "modifier": "left",
+                "instruction": "Svolta a sinistra su Via Don Gaetano Boschi.",
+                "type": "new name",
+                "bearing_after": 190,
+                "bearing_before": 237,
+                "location": [
+                  10.397711,
+                  43.722239
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 15
+                }
+              ]
+            },
+            {
+              "distance": 33.0,
+              "maneuver": {
+                "modifier": "right",
+                "instruction": "Svolta a destra su Piazza Felice Cavallotti.",
+                "type": "end of road",
+                "bearing_after": 269,
+                "bearing_before": 184,
+                "location": [
+                  10.39776,
+                  43.719912
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 27
+                }
+              ]
+            },
+            {
+              "distance": 21.854,
+              "maneuver": {
+                "modifier": "left",
+                "instruction": "Svolta a sinistra su Via Santa Maria.",
+                "type": "turn",
+                "bearing_after": 171,
+                "bearing_before": 258,
+                "location": [
+                  10.397356,
+                  43.719882
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 32
+                }
+              ]
+            },
+            {
+              "distance": 0.0,
+              "maneuver": {
+                "modifier": "left",
+                "instruction": "La tua destinazione è sulla sinistra.",
+                "type": "arrive",
+                "bearing_after": 0,
+                "bearing_before": 171,
+                "location": [
+                  10.3974,
+                  43.719688
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 33
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "distance": 680.469,
+          "steps": [
+            {
+              "distance": 21.854,
+              "maneuver": {
+                "instruction": "Cammina verso nord su Via Santa Maria.",
+                "type": "depart",
+                "bearing_after": 351,
+                "bearing_before": 0,
+                "location": [
+                  10.3974,
+                  43.719688
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 0
+                }
+              ]
+            },
+            {
+              "distance": 127.0,
+              "maneuver": {
+                "modifier": "right",
+                "instruction": "Svolta a destra su Piazza Felice Cavallotti.",
+                "type": "turn",
+                "bearing_after": 78,
+                "bearing_before": 351,
+                "location": [
+                  10.397356,
+                  43.719882
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 1
+                }
+              ]
+            },
+            {
+              "distance": 75.0,
+              "maneuver": {
+                "modifier": "straight",
+                "instruction": "Continua su Via Corsica.",
+                "type": "new name",
+                "bearing_after": 117,
+                "bearing_before": 107,
+                "location": [
+                  10.398914,
+                  43.719821
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 11
+                }
+              ]
+            },
+            {
+              "distance": 35.0,
+              "maneuver": {
+                "modifier": "slight right",
+                "instruction": "Mantieni la destra per imboccare Piazza dei Cavalieri.",
+                "type": "fork",
+                "bearing_after": 110,
+                "bearing_before": 99,
+                "location": [
+                  10.399792,
+                  43.7196
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 16
+                }
+              ]
+            },
+            {
+              "distance": 193.0,
+              "maneuver": {
+                "modifier": "right",
+                "instruction": "Svolta a destra per rimanere su Piazza dei Cavalieri.",
+                "type": "continue",
+                "bearing_after": 200,
+                "bearing_before": 137,
+                "location": [
+                  10.400136,
+                  43.719429
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 18
+                }
+              ]
+            },
+            {
+              "distance": 153.0,
+              "maneuver": {
+                "modifier": "left",
+                "instruction": "Svolta a sinistra su Via Domenico Cavalca.",
+                "type": "turn",
+                "bearing_after": 105,
+                "bearing_before": 181,
+                "location": [
+                  10.399868,
+                  43.717711
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 24
+                }
+              ]
+            },
+            {
+              "distance": 75.0,
+              "maneuver": {
+                "modifier": "right",
+                "instruction": "Svolta a destra su Vicolo del Vigna.",
+                "type": "turn",
+                "bearing_after": 199,
+                "bearing_before": 113,
+                "location": [
+                  10.401498,
+                  43.717088
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 35
+                }
+              ]
+            },
+            {
+              "distance": 0.615,
+              "maneuver": {
+                "modifier": "left",
+                "instruction": "Svolta a sinistra sulla passerella.",
+                "type": "end of road",
+                "bearing_after": 105,
+                "bearing_before": 192,
+                "location": [
+                  10.401247,
+                  43.716445
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 41
+                }
+              ]
+            },
+            {
+              "distance": 0.0,
+              "maneuver": {
+                "modifier": "right",
+                "instruction": "La tua destinazione è sulla destra.",
+                "type": "arrive",
+                "bearing_after": 0,
+                "bearing_before": 105,
+                "location": [
+                  10.401254,
+                  43.716444
+                ]
+              },
+              "intersections": [
+                {
+                  "geometry_index": 42
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

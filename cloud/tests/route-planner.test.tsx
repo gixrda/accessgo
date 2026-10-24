@@ -157,3 +157,59 @@ describe('useRoutePlanner request lifecycle', () => {
     expect(onFocus).not.toHaveBeenCalled();
   });
 });
+
+describe('ordered stops', () => {
+  it('never calculates while an added stop is empty, and passes all completed stops in order', async () => {
+    vi.mocked(api.route).mockResolvedValue(mainRoute);
+    const { result } = setup();
+    act(() => result.current.addVia());
+    await act(async () => result.current.calculate());
+    expect(api.route).not.toHaveBeenCalled();
+    act(() => result.current.changeVia(result.current.via[0].id, otherDestination));
+    await act(async () => result.current.calculate());
+    expect(vi.mocked(api.route).mock.calls[0][4]).toEqual([otherDestination]);
+    expect(vi.mocked(api.route).mock.calls[1][4]).toEqual([otherDestination]);
+  });
+
+  it('invalidates outstanding routes on stop edits and ignores stale completions', async () => {
+    const { main, foot } = queueRequest();
+    const { result, onFocus } = setup();
+    act(() => result.current.addVia());
+    act(() => result.current.changeVia(result.current.via[0].id, otherDestination));
+    act(() => { void result.current.calculate(); });
+    const signal = vi.mocked(api.route).mock.calls[0][3];
+    act(() => result.current.removeVia(result.current.via[0].id));
+    expect(signal?.aborted).toBe(true);
+    await act(async () => { main.resolve(mainRoute); foot.resolve(comparisonRoute); });
+    expect(result.current.route).toBeNull();
+    expect(onFocus).not.toHaveBeenCalled();
+  });
+
+  it('reorders and reverses the entire itinerary while keeping stable stop identities', async () => {
+    vi.mocked(api.route).mockResolvedValue(mainRoute);
+    const { result } = setup();
+    act(() => { result.current.addVia(); result.current.addVia(); });
+    const [first, second] = result.current.via.map((stop) => stop.id);
+    act(() => { result.current.changeVia(first, otherDestination); result.current.changeVia(second, origin); });
+    act(() => result.current.moveVia(second, -1));
+    expect(result.current.via.map((stop) => stop.id)).toEqual([second, first]);
+    act(() => result.current.reverse());
+    expect(result.current.from).toEqual(destination);
+    expect(result.current.to).toEqual(origin);
+    expect(result.current.via.map((stop) => stop.id)).toEqual([first, second]);
+    await act(async () => result.current.calculate());
+    expect(vi.mocked(api.route).mock.calls[0][4]).toEqual([otherDestination, origin]);
+  });
+
+  it('limits to five total points and does not reuse deleted stop identity', () => {
+    const { result } = setup();
+    act(() => { for (let i = 0; i < 5; i++) result.current.addVia(); });
+    expect(result.current.via).toHaveLength(3);
+    const old = result.current.via[1].id;
+    act(() => { result.current.removeVia(old); result.current.addVia(); });
+    expect(result.current.via).toHaveLength(3);
+    expect(result.current.via.some((stop) => stop.id === old)).toBe(false);
+    act(() => result.current.changeVia(old, origin));
+    expect(result.current.via.every((stop) => stop.place === null)).toBe(true);
+  });
+});
