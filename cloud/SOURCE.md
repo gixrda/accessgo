@@ -18,6 +18,8 @@ TypeScript, build di produzione e **493 test passati**. Roundtrip locale ElevenL
 
 Una chiamata diretta Gemma in cinese è riuscita; due precedenti chiamate Worker in cinese hanno usato il fallback correttamente indicato, senza causa transitoria confermata. Non è una prova di accuratezza generale. iPhone fisico, microfono, permessi e GPS durante una passeggiata restano da verificare. La guida richiede schermo/pagina attivi e non ricalcola automaticamente.
 
+Verifica pubblica v6 a 390 × 844: ricerca diretta `比萨斜塔` senza AI, selezione di Piazza dei Cavalieri come partenza e conferma dei due candidati; percorso restituito di 620 m, 10 minuti e 8 manovre. I controlli Parla e Guida vocale risultano disponibili. Questa prova non ha richiesto permessi microfono/GPS né creato report.
+
 Credenziali, database pubblici, `.dev.vars`, dipendenze e build non sono inclusi. Una scansione dei file sorgente e del bundle client non ha trovato i segreti locali configurati.
 
 ---
