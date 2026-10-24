@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
-  VERIFICATION_STATUSES, type Interpretation as InterpretationData, type OsmFeature, type Report, type ReportCategory, type ServerStatus, type VerificationStatus,
+  VERIFICATION_STATUSES, type Interpretation as InterpretationData, type OsmFeature, type Report, type ServerStatus, type VerificationStatus,
 } from '../../shared/types.ts';
 import { api } from '../api.ts';
+import { PLAIN } from '../lib/alerts.ts';
 import { CATEGORY_LABEL, CERTAINTY_HINT, CERTAINTY_LABEL, SEVERITY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
+import { Icon } from './Icon.tsx';
 import type { Selection } from './MapView.tsx';
 
 const CERTAINTY_CLASS = { known_obstacle: 'known', possible_issue: 'possible', positive_info: 'positive', info: 'info' } as const;
@@ -16,38 +18,29 @@ const TAG_LABEL: Record<string, string> = {
 
 const dateFmt = new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
 
-/** Interpretazione dell'AI (o del fallback a regole), con la risposta di chi segnala tenuta separata. */
-export function Interpretation({ interpretation: i, category, categorySource, followUp }: {
+/**
+ * Cosa ha capito l'analisi (Gemma o regole), con la risposta di chi segnala tenuta separata.
+ * `category` permette di mostrare un controllo per correggere la categoria (modulo di segnalazione).
+ */
+export function Interpretation({ interpretation: i, category, followUp }: {
   interpretation: InterpretationData;
-  category?: ReportCategory;
-  categorySource?: Report['categorySource'];
+  category?: ReactNode;
   followUp?: Report['followUp'];
 }) {
   return (
     <div className="interp">
-      <p className="interp__engine">
-        {i.engine === 'gemma'
-          ? <>Interpretata dall'AI <strong>{i.model}</strong>{i.note ? ` — ${i.note}` : ''}</>
-          : <><strong>Classificazione a regole</strong> (non AI){i.note ? ` — ${i.note}` : ''}</>}
-      </p>
       <dl className="kv">
-        <dt>Categoria</dt>
-        <dd>
-          {CATEGORY_LABEL[category ?? i.category]}{' '}
-          <span className="muted">({categorySource === 'user' ? 'scelta da chi segnala' : 'proposta automaticamente'})</span>
-        </dd>
-        {i.obstacle && <><dt>Ostacolo</dt><dd>{i.obstacle}</dd></>}
-        <dt>Sintesi</dt><dd>{i.summary}</dd>
-        <dt>Gravità</dt><dd>{SEVERITY_LABEL[i.severity]}</dd>
+        {category !== null && <><dt>Tipo</dt><dd>{category ?? CATEGORY_LABEL[i.category]}</dd></>}
+        <dt>Riassunto</dt><dd>{i.summary}</dd>
         {i.photo_note && <><dt>Nella foto</dt><dd>{i.photo_note}</dd></>}
-        {followUp && <><dt>{followUp.question}</dt><dd>{followUp.answer} <span className="muted">(risposta di chi segnala)</span></dd></>}
+        {i.severity !== 'unknown' && <><dt>Gravità</dt><dd>{SEVERITY_LABEL[i.severity]}</dd></>}
       </dl>
-      {i.missing_info.length > 0 && (
-        <>
-          <p className="interp__sub">Informazioni mancanti</p>
-          <ul className="bullets">{i.missing_info.map((m) => <li key={m}>{m}</li>)}</ul>
-        </>
+      {followUp && (
+        <p className="answer"><span>{followUp.question}</span><strong>{followUp.answer}</strong></p>
       )}
+      <p className="interp__engine" title={i.model}>
+        {i.engine === 'gemma' ? "Letto da Gemma, l'intelligenza artificiale." : 'Riconosciuto in automatico, senza intelligenza artificiale.'}{i.note ? ` ${i.note}` : ''}
+      </p>
     </div>
   );
 }
@@ -67,26 +60,21 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
 
   return (
     <>
-      <p className="eyebrow">Segnalazione utente</p>
       <h2 className="panel__title">{CATEGORY_LABEL[report.category]}</h2>
-      <p><span className={`status status--${report.status}`}>{STATUS_LABEL[report.status]}</span></p>
+      <p className="badge-line">
+        <span className={`status status--${report.status}`}>{STATUS_LABEL[report.status]}</span>
+        <span className="muted">Segnalata il {dateFmt.format(new Date(report.createdAt))}</span>
+      </p>
       {report.status === 'unverified' && (
-        <p className="msg msg--warn">Non ancora verificata: l'informazione proviene da un utente e non è stata confermata sul posto.</p>
+        <p className="msg msg--warn">Segnalata da un utente: nessuno l'ha ancora controllata sul posto.</p>
       )}
-      <p className="interp__sub">Descrizione originale</p>
       <blockquote className="quote">{report.description}</blockquote>
       {report.hasPhoto && <img className="report-photo" src={`/api/reports/${report.id}/photo`} alt="Foto dell'ostacolo allegata da chi segnala" />}
-      <Interpretation interpretation={report.interpretation} category={report.category}
-        categorySource={report.categorySource} followUp={report.followUp} />
-      <dl className="kv">
-        <dt>Inviata</dt><dd>{dateFmt.format(new Date(report.createdAt))}</dd>
-        {report.statusUpdatedAt && <><dt>Stato aggiornato</dt><dd>{dateFmt.format(new Date(report.statusUpdatedAt))}</dd></>}
-        <dt>Posizione</dt><dd>{report.lat.toFixed(5)}, {report.lng.toFixed(5)} <span className="muted">(scelta sulla mappa)</span></dd>
-      </dl>
+      <Interpretation interpretation={report.interpretation} category={null} followUp={report.followUp} />
       {status?.admin && (
         <details className="admin">
           <summary>Azioni moderatore</summary>
-          <p className="field__help">Cambia lo stato solo dopo un sopralluogo o una conferma attendibile. L'interpretazione automatica non è una verifica.</p>
+          <p className="field__help">Cambia lo stato solo dopo un sopralluogo o una conferma attendibile. L'analisi automatica non è una verifica.</p>
           <label htmlFor="admin-token" className="field__label">Codice moderatore</label>
           <input id="admin-token" type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" />
           <div className="row">
@@ -97,6 +85,7 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
             ))}
           </div>
           {error && <p className="msg msg--error" role="alert">{error}</p>}
+          {report.statusUpdatedAt && <p className="field__help">Stato aggiornato il {dateFmt.format(new Date(report.statusUpdatedAt))}.</p>}
         </details>
       )}
     </>
@@ -105,22 +94,25 @@ function ReportDetail({ report, status, onUpdated }: { report: Report; status: S
 
 function FeatureDetail({ feature }: { feature: OsmFeature }) {
   const tone = CERTAINTY_CLASS[feature.certainty];
+  const plain = feature.scope === 'path' ? PLAIN[feature.kind] : undefined;
   return (
     <>
-      <p className="eyebrow">{feature.scope === 'place' ? 'Luogo · OpenStreetMap' : 'Dato OpenStreetMap'}</p>
       <h2 className="panel__title">{feature.label}</h2>
-      {feature.name && <p className="muted">{feature.name}</p>}
+      {(plain || feature.name) && <p className="muted">{[plain, feature.name].filter(Boolean).join(' · ')}</p>}
       <p className="badge-line"><span className={`mk mk--${tone} mk--inline`} aria-hidden="true" /> <strong>{CERTAINTY_LABEL[feature.certainty]}</strong></p>
-      <p className="field__help">{CERTAINTY_HINT[feature.certainty]}</p>
-      <dl className="kv">
-        {Object.entries(feature.tags).filter(([k]) => k !== 'name').map(([k, v]) => (
-          <div key={k} className="kv__row"><dt>{TAG_LABEL[k] ?? k}</dt><dd><code>{k}={v}</code></dd></div>
-        ))}
-      </dl>
-      <p className="field__help">
-        Fonte: <a href={`https://www.openstreetmap.org/${feature.id}`} target="_blank" rel="noreferrer">OpenStreetMap {feature.id}</a>.
-        Il dato può essere incompleto o non aggiornato.
-      </p>
+      <p>{CERTAINTY_HINT[feature.certainty]}</p>
+      <details className="more">
+        <summary>Dati tecnici (OpenStreetMap)</summary>
+        <dl className="kv">
+          {Object.entries(feature.tags).filter(([k]) => k !== 'name').map(([k, v]) => (
+            <div key={k} className="kv__row"><dt>{TAG_LABEL[k] ?? k}</dt><dd><code>{k}={v}</code></dd></div>
+          ))}
+        </dl>
+        <p className="field__help">
+          Fonte: <a href={`https://www.openstreetmap.org/${feature.id}`} target="_blank" rel="noreferrer">OpenStreetMap {feature.id}</a>.
+          Il dato può essere incompleto o non aggiornato.
+        </p>
+      </details>
     </>
   );
 }
@@ -130,7 +122,7 @@ export function DetailPanel({ selection, status, onClose, onUpdated }: {
 }) {
   return (
     <section className="panel detail" aria-label="Dettagli dell'elemento selezionato">
-      <button type="button" className="btn btn--ghost btn--sm back" onClick={onClose}>← Indietro</button>
+      <button type="button" className="btn btn--ghost btn--sm back" onClick={onClose}><Icon name="back" /> Indietro</button>
       {selection.type === 'report'
         ? <ReportDetail report={selection.report} status={status} onUpdated={onUpdated} />
         : <FeatureDetail feature={selection.feature} />}

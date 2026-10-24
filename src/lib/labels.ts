@@ -18,16 +18,16 @@ export const STATUS_LABEL: Record<VerificationStatus, string> = {
 
 export const CERTAINTY_LABEL: Record<Certainty, string> = {
   known_obstacle: 'Ostacolo noto',
-  possible_issue: 'Possibile criticità',
-  positive_info: 'Elemento favorevole',
-  info: 'Dato incompleto',
+  possible_issue: 'Possibile difficoltà',
+  positive_info: 'Elemento utile',
+  info: 'Informazioni mancanti',
 };
 
 export const CERTAINTY_HINT: Record<Certainty, string> = {
-  known_obstacle: 'Il dato OpenStreetMap indica un ostacolo per la sedia a rotelle.',
-  possible_issue: 'Il dato OpenStreetMap suggerisce una possibile difficoltà: va valutata sul posto.',
-  positive_info: 'Il dato OpenStreetMap indica un elemento favorevole. Non garantisce l\'accessibilità dell\'intero tratto.',
-  info: 'Elemento mappato senza informazioni sufficienti a valutarne l\'accessibilità.',
+  known_obstacle: 'Secondo OpenStreetMap qui c\'è un ostacolo per la sedia a rotelle.',
+  possible_issue: 'Potrebbe essere una difficoltà: conviene controllare sul posto.',
+  positive_info: 'Aiuta il passaggio, ma non garantisce che tutto il tratto sia accessibile.',
+  info: 'Mancano le informazioni per capire se si passa.',
 };
 
 export const SEVERITY_LABEL: Record<Severity, string> = {

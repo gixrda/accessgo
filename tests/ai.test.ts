@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extractJson, fallbackInterpret, interpret, validateInterpretation } from '../server/ai.ts';
+import { extractJson, fallbackInterpret, interpret, setRetryDelay, validateInterpretation } from '../server/ai.ts';
+
+setRetryDelay(0);
 
 const VIA_ROMA = "In Via Roma c'è un gradino troppo alto e non riesco a passare con la sedia a rotelle.";
 
@@ -104,6 +106,13 @@ describe('interpret', () => {
     expect(body.contents[0].parts[0]).toEqual({ inline_data: { mime_type: 'image/jpeg', data: 'QUJD' } });
     expect(r).toMatchObject({ engine: 'gemma', photo_note: ANSWER.photo_note, question: ANSWER.question });
     expect(r.note).toBeUndefined();
+  });
+
+  it('riprova una volta dopo un errore temporaneo del servizio', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => (++calls === 1 ? new Response('busy', { status: 503 }) : gemmaReply(ANSWER))));
+    expect((await interpret(VIA_ROMA, { GEMINI_API_KEY: 'k' })).engine).toBe('gemma');
+    expect(calls).toBe(2);
   });
 
   it('se il modello rifiuta la foto riprova con il solo testo e lo dichiara', async () => {

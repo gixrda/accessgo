@@ -137,6 +137,13 @@ export function analyzeRoute(route: LatLngTuple[], features: OsmFeature[], repor
   return { ...result, alongM };
 }
 
+/** Distanza dalla partenza del punto del percorso più vicino a p. */
+export function distanceAlong(route: LatLngTuple[], p: LatLngTuple): number {
+  if (route.length < 2) return 0;
+  const xy = projector(route[0][0]);
+  return alongRoute(xy(p), route.map(xy));
+}
+
 /** Ostacoli noti e segnalazioni sul percorso, in ordine di percorrenza. */
 export function routeObstacles(a: RouteAnalysis): RouteObstacle[] {
   return [

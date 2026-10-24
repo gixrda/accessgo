@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import type { GeocodeResult, LatLngTuple, OsmFeature, RouteResult, RouteSafety } from '../../shared/types.ts';
+import type { GeocodeResult, LatLngTuple, OsmFeature, RouteResult } from '../../shared/types.ts';
 import { api } from '../api.ts';
-import { formatDistance, formatDuration, routeObstacles, type RouteAnalysis } from '../lib/analysis.ts';
-import { compareRoutes, comparisonVerdict } from '../lib/compare.ts';
-import { CATEGORY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
+import { routeAlerts, type RouteAlert } from '../lib/alerts.ts';
+import { formatDistance, formatDuration, type RouteAnalysis } from '../lib/analysis.ts';
+import { compareRoutes } from '../lib/compare.ts';
 import { Icon } from './Icon.tsx';
 import type { PickMode, Selection } from './MapView.tsx';
 
@@ -70,15 +70,17 @@ function PlaceField(props: {
         <>
           <form className="search" onSubmit={search} role="search">
             <input id={id} type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Via, piazza o luogo a Pisa" autoComplete="off" />
-            <button type="submit" className="btn btn--secondary btn--sm" disabled={busy || q.trim().length < 3}>{busy ? 'Cerco…' : 'Cerca'}</button>
+            <button type="submit" className="btn btn--secondary btn--sm" disabled={busy || q.trim().length < 3}>
+              <Icon name="search" /> {busy ? 'Cerco…' : 'Cerca'}
+            </button>
           </form>
           <div className="row">
             <button type="button" className={`btn btn--ghost btn--sm${props.picking ? ' is-active' : ''}`} aria-pressed={props.picking} onClick={props.onPick}>
-              <Icon name="locate" /> {props.picking ? 'Tocca la mappa…' : 'Scegli sulla mappa'}
+              <Icon name="pin" /> {props.picking ? 'Tocca la mappa…' : 'Scegli sulla mappa'}
             </button>
             {props.onLocate && (
               <button type="button" className="btn btn--ghost btn--sm" onClick={props.onLocate} disabled={props.locating}>
-                {props.locating ? 'Localizzo…' : 'La mia posizione'}
+                <Icon name="locate" /> {props.locating ? 'Localizzo…' : 'La mia posizione'}
               </button>
             )}
           </div>
@@ -100,227 +102,184 @@ function PlaceField(props: {
   );
 }
 
-function FeatureList({ title, items, tone, onSelect, open }: {
-  title: string; items: OsmFeature[]; tone: string; onSelect: Props['onSelect']; open?: boolean;
-}) {
+function FeatureList({ title, items, onSelect }: { title: string; items: OsmFeature[]; onSelect: Props['onSelect'] }) {
   if (!items.length) return null;
   return (
-    <details className={`group group--${tone}`} open={open}>
-      <summary><span className={`mk mk--${tone} mk--inline`} aria-hidden="true" /> {title} <span className="count">{items.length}</span></summary>
-      <ul>
+    <div className="more__group">
+      <h4 className="more__title">{title} <span className="count">{items.length}</span></h4>
+      <ul className="plain-list">
         {items.map((f) => (
           <li key={f.id}><button type="button" onClick={() => onSelect({ type: 'feature', feature: f })}>{f.label}{f.name ? ` · ${f.name}` : ''}</button></li>
         ))}
       </ul>
-    </details>
+    </div>
   );
 }
 
-/** Ostacoli noti e segnalazioni nell'ordine in cui si incontrano: numerati come sulla mappa. */
-function ObstacleList({ analysis, onSelect }: { analysis: RouteAnalysis; onSelect: Props['onSelect'] }) {
-  const items = routeObstacles(analysis);
-  if (!items.length) {
-    return (
-      <p className="msg">Nessun ostacolo noto lungo il percorso <strong>nei dati disponibili</strong>. Questo non garantisce che il percorso sia accessibile.</p>
-    );
+const NOT_VERIFIABLE = 'Non è stato possibile trovare un percorso sufficientemente verificabile. Controlla la mappa prima di proseguire.';
+
+/** Esito in una frase: cosa deve sapere chi parte. Non dice mai "sicuro" o "accessibile". */
+function verdictOf(route: RouteResult, alerts: RouteAlert[]): { tone: 'warn' | 'calm'; title: string; text: string } {
+  if (route.mode === 'foot_fallback') {
+    return { tone: 'warn', title: 'Percorso a piedi standard', text: `${route.notice ?? ''} Non è calcolato per la sedia a rotelle: può includere scale o gradini.`.trim() };
   }
-  const reports = analysis.reports.length;
-  return (
-    <section className="obstacles" aria-labelledby="obstacles-title">
-      <h3 id="obstacles-title" className="obstacles__title">
-        <span aria-hidden="true">⚠</span> {items.length === 1 ? '1 ostacolo' : `${items.length} ostacoli`} lungo il percorso
-      </h3>
-      <ol className="obstacles__list">
-        {items.map((o, i) => (
-          <li key={o.type === 'feature' ? o.feature.id : o.report.id}>
-            <button type="button" onClick={() => onSelect(o.type === 'feature' ? { type: 'feature', feature: o.feature } : { type: 'report', report: o.report })}>
-              <span className="route-num" aria-hidden="true">{i + 1}</span>
-              <span className="obstacles__what">
-                {o.type === 'feature'
-                  ? <>{o.feature.label}{o.feature.name ? ` · ${o.feature.name}` : ''} <span className="muted">(OpenStreetMap)</span></>
-                  : <>{CATEGORY_LABEL[o.report.category]} <span className={`status status--${o.report.status}`}>{STATUS_LABEL[o.report.status]}</span></>}
-              </span>
-              <span className="obstacles__where">a {formatDistance(o.alongM)}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-      {reports > 0 && <p className="field__help">Le segnalazioni degli utenti sono incluse anche se non ancora verificate.</p>}
-    </section>
-  );
-}
-
-const SEGMENT_LABEL = {
-  carriageway: 'su carreggiata senza marciapiede mappato',
-  main_road: 'su strada principale senza marciapiede mappato',
-  steps: 'su scale',
-} as const;
-
-/** Tipo di tratti del percorso: non dichiara mai "sicuro", solo ciò che i dati permettono di verificare. */
-function SafetyCard({ safety, onFocus }: { safety: RouteSafety; onFocus: Props['onFocus'] }) {
-  if (!safety.checked) {
-    return (
-      <section className="safety" aria-labelledby="safety-title">
-        <h3 id="safety-title" className="safety__title">Tratti del percorso</h3>
-        <p className="msg msg--warn">Verifica dei tratti non disponibile in questo momento: non sappiamo se il percorso usa marciapiedi o carreggiata. Controlla la mappa prima di proseguire.</p>
-      </section>
-    );
+  const unverifiable = !route.safety?.checked || !route.safety.verifiable;
+  if (alerts.length) {
+    return {
+      tone: 'warn',
+      title: alerts.length === 1 ? '1 punto di attenzione' : `${alerts.length} punti di attenzione`,
+      text: unverifiable ? NOT_VERIFIABLE : 'Li trovi qui sotto e numerati sulla mappa.',
+    };
   }
-  const total = safety.pedestrianM + safety.sidewalkM + safety.carriagewayM || 1;
-  const pct = (m: number) => `${(m / total) * 100}%`;
-  return (
-    <section className="safety" aria-labelledby="safety-title">
-      <h3 id="safety-title" className="safety__title">Tratti del percorso</h3>
-      <div className="safety__bar" aria-hidden="true">
-        <span className="is-pedestrian" style={{ width: pct(safety.pedestrianM) }} />
-        <span className="is-sidewalk" style={{ width: pct(safety.sidewalkM) }} />
-        <span className="is-carriageway" style={{ width: pct(safety.carriagewayM) }} />
-      </div>
-      <ul className="safety__legend">
-        <li><span className="key is-pedestrian" aria-hidden="true" />Pedonali o attraversamenti: <strong>{formatDistance(safety.pedestrianM)}</strong></li>
-        <li><span className="key is-sidewalk" aria-hidden="true" />Strade con marciapiede mappato: <strong>{formatDistance(safety.sidewalkM)}</strong></li>
-        <li><span className="key is-carriageway" aria-hidden="true" />Carreggiata senza marciapiede mappato: <strong>{formatDistance(safety.carriagewayM)}</strong></li>
-      </ul>
-      {safety.verifiable ? (
-        <p className="msg">Nei dati OpenStreetMap tutto il percorso è su tratti pedonali o strade con marciapiede. Non è una garanzia delle condizioni reali.</p>
-      ) : (
-        <>
-          <p className="msg msg--warn" role="note">Non è stato possibile trovare un percorso sufficientemente verificabile. Controlla la mappa prima di proseguire.</p>
-          <ul className="safety__segments">
-            {safety.segments.map((s, i) => (
-              <li key={i}>
-                <button type="button" onClick={() => onFocus(s.coords)}>
-                  <strong>{s.name ?? 'Tratto senza nome'}</strong> · {formatDistance(s.lengthM)} {SEGMENT_LABEL[s.kind]}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {safety.choice && <p className="field__help">{safety.choice}</p>}
-    </section>
-  );
+  if (unverifiable) return { tone: 'warn', title: 'Nessun ostacolo noto', text: NOT_VERIFIABLE };
+  return { tone: 'calm', title: 'Nessun ostacolo noto', text: 'Secondo OpenStreetMap il percorso è su marciapiedi o zone pedonali.' };
 }
 
-function CompareCard({ route, analysis, foot, footAnalysis, showFoot, setShowFoot, onSelect }: {
-  route: RouteResult; analysis: RouteAnalysis; foot: RouteResult; footAnalysis: RouteAnalysis;
-  showFoot: boolean; setShowFoot: (v: boolean) => void; onSelect: Props['onSelect'];
-}) {
-  const c = compareRoutes({ distanceM: route.distanceM, analysis }, { distanceM: foot.distanceM, analysis: footAnalysis });
-  return (
-    <section className="compare" aria-labelledby="compare-title">
-      <h3 id="compare-title" className="compare__title">Confronto con il percorso a piedi</h3>
-      <table className="compare__table">
-        <thead>
-          <tr><th scope="col"><span className="sr-only">Profilo</span></th><th scope="col">Distanza</th><th scope="col">Ostacoli noti</th><th scope="col">Possibili criticità</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row"><span className="swatch swatch--wheel" aria-hidden="true" />Sedia a rotelle</th>
-            <td>{formatDistance(route.distanceM)}</td><td>{analysis.known.length}</td><td>{analysis.possible.length}</td>
-          </tr>
-          <tr>
-            <th scope="row"><span className="swatch swatch--foot" aria-hidden="true" />A piedi</th>
-            <td>{formatDistance(foot.distanceM)}</td><td>{footAnalysis.known.length}</td><td>{footAnalysis.possible.length}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className={`compare__verdict${c.avoidedKnown.length ? ' is-strong' : ''}`}>{comparisonVerdict(c, formatDistance)}</p>
-      <FeatureList title="Ostacoli noti evitati" items={c.avoidedKnown} tone="known" onSelect={onSelect} open />
-      <FeatureList title="Ostacoli noti solo sul percorso per sedia a rotelle" items={c.addedKnown} tone="known" onSelect={onSelect} open />
-      <label className="layer">
-        <input type="checkbox" checked={showFoot} onChange={(e) => setShowFoot(e.target.checked)} />
-        Mostra il percorso a piedi sulla mappa
-      </label>
-    </section>
-  );
-}
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 function RouteSummary({ route, analysis, onSelect, onFocus, compare }: {
   route: RouteResult; analysis: RouteAnalysis; onSelect: Props['onSelect']; onFocus: Props['onFocus']; compare: Compare;
 }) {
-  const pct = Math.round(analysis.coverage * 100);
+  const alerts = routeAlerts(route, analysis);
+  const v = verdictOf(route, alerts);
+  const foot = route.mode === 'wheelchair' && compare.footRoute && compare.footAnalysis ? compare.footRoute : null;
+  const c = foot ? compareRoutes({ distanceM: route.distanceM, analysis }, { distanceM: foot.distanceM, analysis: compare.footAnalysis! }) : null;
+  const s = route.safety;
+  const total = s ? s.pedestrianM + s.sidewalkM + s.carriagewayM || 1 : 1;
+  const pct = (m: number) => `${(m / total) * 100}%`;
+
   return (
     <div className="summary" aria-live="polite">
-      {route.mode === 'wheelchair' ? (
-        <div className="notice notice--info">
-          <strong>Profilo sedia a rotelle</strong> — calcolato da {route.provider === 'openrouteservice' ? 'OpenRouteService' : 'Valhalla (FOSSGIS)'} sui dati OpenStreetMap.
-          {route.provider === 'valhalla' && " Evita scale e fondi sterrati quando esiste un'alternativa, ma non conosce l'altezza dei cordoli: controlla gli attraversamenti qui sotto."}
-          {route.notice && <> <br />{route.notice}</>}
-        </div>
-      ) : (
-        <div className="notice notice--warn" role="note">
-          <strong>Percorso pedonale standard, non calcolato per sedia a rotelle.</strong>{' '}
-          {route.notice}{' '}
-          Le criticità qui sotto sono comunque confrontate con i dati disponibili.
-        </div>
-      )}
-
-      <dl className="stats">
-        <div><dt>Distanza</dt><dd>{formatDistance(route.distanceM)}</dd></div>
+      <div className={`verdict verdict--${v.tone}`}>
+        <Icon name={v.tone === 'warn' ? 'warning' : 'info'} size={22} />
         <div>
-          <dt>Durata stimata</dt>
-          <dd>{route.durationS !== null ? formatDuration(route.durationS) : <span className="muted" title="La durata disponibile è calcolata a passo pedonale">Non stimata</span>}</dd>
+          <h3 className="verdict__title">{v.title}</h3>
+          <p className="verdict__text">{v.text}</p>
+          <p className="verdict__meta">
+            {formatDistance(route.distanceM)}
+            {route.durationS !== null && <> · circa {formatDuration(route.durationS)}</>}
+          </p>
         </div>
-      </dl>
-
-      <ObstacleList analysis={analysis} onSelect={onSelect} />
-      {route.safety && <SafetyCard safety={route.safety} onFocus={onFocus} />}
-
-      {route.mode === 'wheelchair' && compare.footRoute && compare.footAnalysis && (
-        <CompareCard route={route} analysis={analysis} foot={compare.footRoute} footAnalysis={compare.footAnalysis}
-          showFoot={compare.showFoot} setShowFoot={compare.setShowFoot} onSelect={onSelect} />
-      )}
-
-      <ol className="ladder" aria-label="Affidabilità delle informazioni">
-        <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Percorso calcolato</li>
-        <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Confrontato con OpenStreetMap e segnalazioni</li>
-        {route.safety?.verifiable
-          ? <li className="ladder__step is-done"><span aria-hidden="true">✓</span> Tratti pedonali o con marciapiede nei dati</li>
-          : <li className="ladder__step is-missing"><span aria-hidden="true">✕</span> Tratti pedonali non verificabili nei dati</li>}
-        <li className="ladder__step is-missing"><span aria-hidden="true">✕</span> Non verificato sul posto</li>
-      </ol>
-
-      <div className="coverage">
-        <div className="coverage__head">
-          <span>Dati su superficie, pendenza o larghezza</span>
-          <strong>{pct}% del percorso</strong>
-        </div>
-        <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Copertura dei dati di accessibilità">
-          <span style={{ width: `${pct}%` }} />
-        </div>
-        {pct < 50 && (
-          <p className="msg msg--warn">Informazioni insufficienti per gran parte del tragitto: l'assenza di ostacoli noti non significa che il percorso sia accessibile.</p>
-        )}
       </div>
 
-      <FeatureList title="Possibili criticità" items={analysis.possible} tone="possible" onSelect={onSelect} open={analysis.possible.length <= 6} />
-      <FeatureList title="Attraversamenti senza dati sul cordolo" items={analysis.unknown} tone="info" onSelect={onSelect} open={analysis.unknown.length <= 4} />
-      <FeatureList title="Elementi favorevoli" items={analysis.positive} tone="positive" onSelect={onSelect} />
+      {(s?.choice || (c && c.avoidedKnown.length > 0)) && (
+        <ul className="good-news">
+          {s?.choice && <li><Icon name="check" />{s.choice}</li>}
+          {c && c.avoidedKnown.length > 0 && (
+            <li><Icon name="check" />Evita {plural(c.avoidedKnown.length, 'ostacolo', 'ostacoli')} che il percorso a piedi incontrerebbe ({[...new Set(c.avoidedKnown.map((f) => f.label.split(' (')[0].toLowerCase()))].join(', ')}).</li>
+          )}
+        </ul>
+      )}
+
+      {alerts.length > 0 && (
+        <section aria-labelledby="alerts-title">
+          <h3 id="alerts-title" className="section-title">Lungo il percorso</h3>
+          <ol className="alerts">
+            {alerts.map((a, i) => (
+              <li key={a.key}>
+                <button type="button" onClick={() => (a.selection ? onSelect(a.selection) : onFocus(a.focus))}>
+                  <span className="route-num" aria-hidden="true">{i + 1}</span>
+                  <span className={`alert-icon alert-icon--${a.kind}`} aria-hidden="true"><Icon name={a.icon} /></span>
+                  <span className="alerts__text">
+                    <strong>{a.title}</strong>
+                    {a.detail && <span>{a.detail}</span>}
+                  </span>
+                  <span className="alerts__where">a {formatDistance(a.alongM)}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      <p className="footnote">Calcolato con i dati di OpenStreetMap: nessuno lo ha verificato sul posto.</p>
+
+      <details className="more">
+        <summary>Più dettagli</summary>
+        {s?.checked && (
+          <div className="more__group">
+            <h4 className="more__title">Su che tipo di strada</h4>
+            <div className="road-bar" aria-hidden="true">
+              <span className="is-pedestrian" style={{ width: pct(s.pedestrianM) }} />
+              <span className="is-sidewalk" style={{ width: pct(s.sidewalkM) }} />
+              <span className="is-carriageway" style={{ width: pct(s.carriagewayM) }} />
+            </div>
+            <ul className="road-legend">
+              <li><span className="key is-pedestrian" aria-hidden="true" />Zona pedonale o attraversamento<strong>{formatDistance(s.pedestrianM)}</strong></li>
+              <li><span className="key is-sidewalk" aria-hidden="true" />Strada con marciapiede<strong>{formatDistance(s.sidewalkM)}</strong></li>
+              <li><span className="key is-carriageway" aria-hidden="true" />Strada senza marciapiede<strong>{formatDistance(s.carriagewayM)}</strong></li>
+            </ul>
+          </div>
+        )}
+        {foot && c && (
+          <div className="more__group">
+            <h4 className="more__title">Confronto con il percorso a piedi</h4>
+            <table className="compare__table">
+              <thead><tr><th scope="col"><span className="sr-only">Percorso</span></th><th scope="col">Distanza</th><th scope="col">Ostacoli</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><span className="swatch swatch--wheel" aria-hidden="true" />Sedia a rotelle</th><td>{formatDistance(route.distanceM)}</td><td>{analysis.known.length}</td></tr>
+                <tr><th scope="row"><span className="swatch swatch--foot" aria-hidden="true" />A piedi</th><td>{formatDistance(foot.distanceM)}</td><td>{compare.footAnalysis!.known.length}</td></tr>
+              </tbody>
+            </table>
+            <label className="layer">
+              <input type="checkbox" checked={compare.showFoot} onChange={(e) => compare.setShowFoot(e.target.checked)} />
+              Mostra il percorso a piedi sulla mappa
+            </label>
+          </div>
+        )}
+        <FeatureList title="Possibili difficoltà minori" items={analysis.possible} onSelect={onSelect} />
+        <FeatureList title="Attraversamenti senza informazioni sul gradino" items={analysis.unknown} onSelect={onSelect} />
+        <FeatureList title="Elementi utili" items={analysis.positive} onSelect={onSelect} />
+        <p className="field__help">
+          Percorso calcolato da {route.provider === 'openrouteservice' ? 'OpenRouteService' : route.provider === 'valhalla' ? 'Valhalla (FOSSGIS)' : 'OSRM (FOSSGIS)'}
+          {route.provider === 'valhalla' && ", che evita scale e sterrati ma non conosce l'altezza dei gradini del marciapiede"}.
+          {' '}Dati su fondo, pendenza o larghezza disponibili per il {Math.round(analysis.coverage * 100)}% del tragitto.
+          {route.mode === 'wheelchair' && route.notice && ` ${route.notice}`}
+        </p>
+      </details>
     </div>
   );
 }
 
 export function RoutePanel(p: Props) {
+  const [editing, setEditing] = useState(false);
+  // Con un percorso calcolato partenza e arrivo si riducono a una riga: l'esito resta in vista anche su smartphone.
+  if (p.route && p.analysis && p.from && p.to && !editing) {
+    return (
+      <section aria-labelledby="route-title" className="panel">
+        <h2 id="route-title" className="sr-only">Il tuo percorso</h2>
+        <div className="trip">
+          <div className="trip__places">
+            <span><span className="endpoint endpoint--A endpoint--sm" aria-hidden="true">A</span>{p.from.label}</span>
+            <span><span className="endpoint endpoint--B endpoint--sm" aria-hidden="true">B</span>{p.to.label}</span>
+          </div>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing(true)}>Modifica</button>
+        </div>
+        <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} compare={p} />
+      </section>
+    );
+  }
   return (
     <section aria-labelledby="route-title" className="panel">
-      <h2 id="route-title" className="panel__title">Trova un percorso</h2>
+      <h2 id="route-title" className="panel__title">Dove vuoi andare?</h2>
       <PlaceField letter="A" label="Partenza" value={p.from} picking={p.pickMode === 'from'}
         onPick={() => p.setPickMode(p.pickMode === 'from' ? null : 'from')} onSet={p.setFrom}
         onLocate={() => p.onLocate('from')} locating={p.locating} />
       <PlaceField letter="B" label="Destinazione" value={p.to} picking={p.pickMode === 'to'}
         onPick={() => p.setPickMode(p.pickMode === 'to' ? null : 'to')} onSet={p.setTo} />
       <div className="row">
-        <button type="button" className="btn btn--primary btn--block" onClick={p.onCalculate} disabled={!p.from || !p.to || p.loading}>
+        <button type="button" className="btn btn--primary btn--block" onClick={() => { setEditing(false); p.onCalculate(); }} disabled={!p.from || !p.to || p.loading}>
           {p.loading ? 'Calcolo in corso…' : 'Calcola percorso'}
         </button>
         <button type="button" className="btn btn--ghost" onClick={() => { p.setFrom(p.to); p.setTo(p.from); }}
-          disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti">⇅</button>
+          disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti partenza e destinazione">
+          <Icon name="swap" />
+        </button>
       </div>
       {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
       {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} onFocus={p.onFocus} compare={p} />}
       {!p.route && !p.error && !p.loading && (
-        <p className="hint">Imposta partenza e destinazione cercando un indirizzo o toccando la mappa. AccessGo mostra le criticità note e quanto sono complete le informazioni lungo il tragitto.</p>
+        <p className="hint">Scegli partenza e arrivo: ti mostriamo un percorso per la sedia a rotelle e gli ostacoli da conoscere lungo la strada.</p>
       )}
     </section>
   );

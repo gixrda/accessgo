@@ -32,19 +32,3 @@ export function compareRoutes(
     same: sameObstacles && Math.abs(extraM) <= Math.max(20, foot.distanceM * 0.03),
   };
 }
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** Frase di sintesi del confronto, senza dichiarare accessibile ciò che i dati non dicono. */
-export function comparisonVerdict(c: RouteComparison, formatDistance: (m: number) => string): string {
-  if (c.same) return 'I due percorsi coincidono: nei dati disponibili non ci sono differenze di ostacoli tra i due profili.';
-  const parts: string[] = [];
-  if (c.avoidedKnown.length) parts.push(plural(c.avoidedKnown.length, 'ostacolo noto', 'ostacoli noti'));
-  if (c.avoidedPossible.length) parts.push(plural(c.avoidedPossible.length, 'possibile criticità', 'possibili criticità'));
-  const cost = c.extraM > 20 ? `, con ${formatDistance(c.extraM)} in più` : '';
-  const head = parts.length
-    ? `Il percorso per sedia a rotelle evita ${parts.join(' e ')} che il percorso a piedi attraversa${cost}.`
-    : `I percorsi sono diversi${cost}, ma nei dati disponibili nessun ostacolo noto viene evitato: la differenza dipende dalle preferenze del profilo (fondi, scale, velocità).`;
-  if (!c.addedKnown.length) return head;
-  return `${head} Attenzione: passa da ${plural(c.addedKnown.length, 'ostacolo noto', 'ostacoli noti')} che il percorso a piedi non ha (il router non li conosce tutti, es. i cordoli).`;
-}

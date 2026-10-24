@@ -3,9 +3,9 @@ import type { Layers } from './MapView.tsx';
 
 const ITEMS: { key: keyof Layers; label: string; tone: string }[] = [
   { key: 'known', label: 'Ostacoli noti', tone: 'known' },
-  { key: 'possible', label: 'Possibili criticità', tone: 'possible' },
+  { key: 'possible', label: 'Possibili difficoltà', tone: 'possible' },
   { key: 'reports', label: 'Segnalazioni utenti', tone: 'report' },
-  { key: 'positive', label: 'Elementi favorevoli', tone: 'positive' },
+  { key: 'positive', label: 'Elementi utili', tone: 'positive' },
   { key: 'info', label: 'Attraversamenti senza dati', tone: 'info' },
   { key: 'places', label: 'Accessibilità dei luoghi', tone: 'place' },
 ];

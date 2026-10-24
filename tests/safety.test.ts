@@ -58,6 +58,7 @@ describe('routing sicuro: casi richiesti', () => {
     mockValhalla([candidate(0, 300, [footway(150), { use: 'road', road_class: 'residential', sidewalk: 'both', m: 100 }, { use: 'pedestrian_crossing', m: 10 }, footway(40)])]);
     const r = await getRoute(A, B, {});
     expect(r.safety).toMatchObject({ checked: true, verifiable: true, carriagewayM: 0, pedestrianM: 200, sidewalkM: 100, segments: [] });
+    expect(r.safety!.choice).toBeUndefined();
   });
 
   it('una strada non percorribile a piedi in sicurezza fa scegliere un\'alternativa, con spiegazione', async () => {
@@ -68,7 +69,7 @@ describe('routing sicuro: casi richiesti', () => {
     const r = await getRoute(A, B, {});
     expect(r.distanceM).toBe(420);
     expect(r.safety).toMatchObject({ verifiable: true, alternatives: 2 });
-    expect(r.safety!.choice).toMatch(/strada principale senza marciapiede.*120 m in più/);
+    expect(r.safety!.choice).toBe('Abbiamo scelto un percorso più lungo di 120 m perché il più breve passa in una strada trafficata senza marciapiede.');
   });
 
   it('strada senza percorso pedonale noto: non è presentata come verificabile e i tratti sono indicati', async () => {
@@ -84,7 +85,7 @@ describe('routing sicuro: casi richiesti', () => {
     mockValhalla([candidate(0, 150, [footway(60), { use: 'steps', m: 8 }, footway(80)]), candidate(1, 290, [footway(290)])]);
     const r = await getRoute(A, B, {});
     expect(r.distanceM).toBe(290);
-    expect(r.safety!.choice).toMatch(/su scale/);
+    expect(r.safety!.choice).toMatch(/perché il più breve passa da scale/);
   });
 
   it('nessuna alternativa accettabile: comunica il limite invece di proporre un itinerario', async () => {
@@ -108,7 +109,7 @@ describe('routing sicuro: casi limite', () => {
     ]);
     const r = await getRoute(A, B, {});
     expect(r.distanceM).toBe(485);
-    expect(r.safety!.choice).toMatch(/evita 120 m su carreggiata.*190 m in più/);
+    expect(r.safety!.choice).toBe('Abbiamo scelto un percorso più lungo di 190 m per evitare 120 m di strada senza marciapiede.');
   });
 
   it('i brevi tratti di collegamento ai punti scelti non contano come carreggiata', async () => {

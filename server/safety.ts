@@ -132,17 +132,14 @@ export async function chooseSafest(candidates: RouteResult[], wheelchair: boolea
   const score = (a: (typeof ok)[number]) => a.safety.carriagewayM + (a.route.distanceM - minDist) / DETOUR_PER_CARRIAGEWAY_M;
   const best = ok.reduce((x, y) => (score(y) < score(x) ? y : x));
   const first = checked[0];
+  // Spiegazione in parole semplici, solo quando la scelta cambia qualcosa per chi si sposta.
   let choice: string | undefined;
-  if (checked.length > 1) {
-    if (best === first) {
-      choice = `È il più verificabile tra ${checked.length} alternative calcolate.`;
-    } else {
-      const why = rejected(first.safety)
-        ? `il percorso più diretto passa ${first.safety.segments.some((s) => s.kind === 'main_road') ? 'su una strada principale senza marciapiede mappato' : 'su scale'}`
-        : `evita ${rounded(first.safety.carriagewayM - best.safety.carriagewayM)} su carreggiata senza marciapiede mappato`;
-      const extra = best.route.distanceM - first.route.distanceM;
-      choice = `Preferito tra ${checked.length} alternative: ${why}${extra > 10 ? ` (${rounded(extra)} in più)` : ''}.`;
-    }
+  if (best !== first) {
+    const extra = best.route.distanceM - first.route.distanceM;
+    const longer = extra > 10 ? `un percorso più lungo di ${rounded(extra)}` : 'un percorso diverso';
+    choice = rejected(first.safety)
+      ? `Abbiamo scelto ${longer} perché il più breve passa ${first.safety.segments.some((s) => s.kind === 'main_road') ? 'in una strada trafficata senza marciapiede' : 'da scale'}.`
+      : `Abbiamo scelto ${longer} per evitare ${rounded(first.safety.carriagewayM - best.safety.carriagewayM)} di strada senza marciapiede.`;
   }
   return { ...best.route, safety: { ...best.safety, alternatives: checked.length, ...(choice ? { choice } : {}) } };
 }

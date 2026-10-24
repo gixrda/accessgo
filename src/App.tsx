@@ -6,7 +6,8 @@ import { LayersControl } from './components/LayersControl.tsx';
 import { MapView, type Focus, type Layers, type PickMode, type Selection } from './components/MapView.tsx';
 import { ReportPanel } from './components/ReportPanel.tsx';
 import { RoutePanel } from './components/RoutePanel.tsx';
-import { analyzeRoute, routeObstacles } from './lib/analysis.ts';
+import { routeAlerts } from './lib/alerts.ts';
+import { analyzeRoute } from './lib/analysis.ts';
 
 type Place = { lat: number; lng: number; label: string };
 type Tab = 'route' | 'report';
@@ -182,14 +183,14 @@ export default function App() {
                 onLocate={locate} locating={locating} status={status}
                 onCreated={upsertReport} onShow={(r) => select({ type: 'report', report: r })} />
             )}
-            <p className="disclaimer">Prototipo per hackathon. I percorsi e i dati non sono verificati sul posto: valuta sempre la situazione reale.</p>
           </div>
         </aside>
 
         <div className="map-area">
           <MapView features={features} reports={reports} layers={layers} route={route} from={from} to={to}
             compareRoute={route?.mode === 'wheelchair' && showFoot ? footRoute : null}
-            obstacles={analysis ? routeObstacles(analysis) : []}
+            alerts={route && analysis ? routeAlerts(route, analysis) : []}
+            onAlert={(a) => (a.selection ? select(a.selection) : setFocus({ coords: a.focus, nonce: Date.now() }))}
             reportPoint={reportPoint} userPos={userPos} pickMode={pickMode} selection={selection} focus={focus}
             onPick={onPick} onSelect={select} />
           <LayersControl layers={layers} onChange={setLayers} osmDate={osm?.fetchedAt} />

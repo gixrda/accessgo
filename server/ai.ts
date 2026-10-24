@@ -2,6 +2,9 @@ import { REPORT_CATEGORIES, type FollowUpQuestion, type Interpretation, type Rep
 import type { Env } from './errors.ts';
 
 export const DEFAULT_GEMMA_MODEL = 'gemma-4-26b-a4b-it';
+let RETRY_MS = 1500;
+/** Solo per i test. */
+export const setRetryDelay = (ms: number) => { RETRY_MS = ms; };
 
 export type Photo = { mime: string; base64: string };
 
@@ -71,7 +74,7 @@ async function callGoogle(key: string, model: string, prompt: string, photo?: Ph
     ...(photo ? [{ inline_data: { mime_type: photo.mime, data: photo.base64 } }] : []),
     { text: prompt },
   ];
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const request = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
@@ -81,6 +84,12 @@ async function callGoogle(key: string, model: string, prompt: string, photo?: Ph
     }),
     signal: AbortSignal.timeout(30_000),
   });
+  let res = await request();
+  // Il piano gratuito restituisce a volte errori temporanei (sovraccarico): un solo nuovo tentativo.
+  if ([429, 500, 503].includes(res.status)) {
+    await new Promise((r) => setTimeout(r, RETRY_MS));
+    res = await request();
+  }
   if (!res.ok) throw new Error(`google ${res.status}`);
   const json = await res.json() as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
   // Gemma 4 può restituire parti di "ragionamento": teniamo solo la risposta.
