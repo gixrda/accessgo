@@ -66,7 +66,7 @@ Il comando invia **tre descrizioni sintetiche** in italiano e inglese, comprese 
 
 Ogni interpretazione ha un budget complessivo di **25 secondi**, con al massimo **un nuovo tentativo** per errori transitori, entro lo stesso budget. Chiave assente, timeout, limiti del servizio o risposta non valida attivano regole locali, indicate esplicitamente come `fallback`: la disponibilità della chiave non dimostra che una chiamata sia riuscita.
 
-Le risposte sono controllate per formato, citazioni presenti nel testo e numeri supportati dalla descrizione. Questi controlli riducono alcune invenzioni, ma **non garantiscono la correttezza semantica né verificano l'accessibilità reale**. La posizione resta scelta sulla mappa e le nuove segnalazioni restano non verificate; controlla sempre la categoria proposta prima della pubblicazione.
+Le risposte sono controllate per formato, citazioni presenti nel testo e numeri supportati dalla descrizione. Questi controlli riducono alcune invenzioni, ma **non garantiscono la correttezza semantica né verificano l'accessibilità reale**. La posizione resta scelta sulla mappa e le nuove segnalazioni restano non verificate; Puoi scegliere manualmente la categoria nel modulo; l'interpretazione automatica viene mostrata dopo l'invio.
 
 ## Product limits
 
