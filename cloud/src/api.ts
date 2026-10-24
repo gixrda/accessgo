@@ -1,6 +1,7 @@
 import type {
   GeocodeResult, Interpretation, OsmDataset, Report, ReportCategory, RouteResult, ServerStatus, VerificationStatus,
 } from '../shared/types.ts';
+import type { RouteIntent } from '../shared/routeIntent.ts';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
@@ -21,6 +22,8 @@ export const api = {
   status: () => request<ServerStatus>('/api/status'),
   osm: () => request<OsmDataset>('/api/osm'),
   reports: () => request<Report[]>('/api/reports'),
+  interpretRoute: (text: string, signal?: AbortSignal) =>
+    request<RouteIntent>('/api/route-intent', { method: 'POST', body: JSON.stringify({ text }), signal }),
   analyzeReport: (description: string, signal?: AbortSignal) =>
     request<{ interpretation: Interpretation; published: false }>('/api/analyze', {
       method: 'POST', body: JSON.stringify({ description }), signal,

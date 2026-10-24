@@ -6,6 +6,7 @@ import { createGeocoder } from './geocoding.ts';
 import { createReportStore } from './reports.ts';
 import { getFootRoute, getRoute } from './routing.ts';
 import { synthesizeSpeech, transcribeAudio, voiceStatus } from './elevenlabs.ts';
+import { directPlaceIntent, interpretRouteIntent, routeIntentText } from './route-intent.ts';
 
 export interface CloudApiOptions {
   env: Env;
@@ -106,6 +107,14 @@ export function createCloudApi({ env, db, osm, getUserId }: CloudApiOptions) {
         await reserveAnalysisSlot(db);
         // Preview does not use the report store or look up the visitor's identity.
         return send(200, { interpretation: await interpret(description, env), published: false });
+      }
+      if (method === 'POST' && path === '/api/route-intent') {
+        requireSameOrigin(req, true);
+        const text = routeIntentText(await readJsonBody(req));
+        const direct = directPlaceIntent(text);
+        if (direct) return send(200, direct);
+        await reserveAnalysisSlot(db);
+        return send(200, await interpretRouteIntent(text, env));
       }
       if (method === 'POST' && path === '/api/reports') {
         const userId = await getUserId();

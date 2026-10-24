@@ -30,12 +30,13 @@ export async function getVoiceStatus(signal?: AbortSignal): Promise<VoiceStatus>
   try { return await pendingStatus; } finally { pendingStatus = null; }
 }
 
-export async function transcribeAudio(audio: Blob, signal?: AbortSignal): Promise<string> {
+export async function transcribeAudio(audio: Blob, signal?: AbortSignal, language: 'it' | 'auto' = 'it'): Promise<string> {
   const type = audio.type.split(';')[0].trim();
   const extension = type === 'audio/mp4' ? 'm4a' : type === 'audio/ogg' ? 'ogg'
     : type === 'audio/wav' ? 'wav' : type === 'audio/mpeg' ? 'mp3' : 'webm';
   const body = new FormData();
   body.append('audio', audio, `dettatura.${extension}`);
+  if (language === 'auto') body.append('language', 'auto');
   const response = await fetch('/api/voice/transcribe', { method: 'POST', body, signal, cache: 'no-store' });
   if (!response.ok) throw new Error(await errorMessage(response));
   const result = await response.json() as { text?: unknown; provider?: unknown };

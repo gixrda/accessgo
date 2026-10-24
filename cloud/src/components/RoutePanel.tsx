@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { OsmFeature, Report, RouteResult } from '../../shared/types.ts';
 import { formatDistance, formatDuration, type RouteAnalysis } from '../lib/analysis.ts';
 import { compareRoutes, comparisonVerdict } from '../lib/compare.ts';
@@ -5,15 +6,20 @@ import { CATEGORY_LABEL, STATUS_LABEL } from '../lib/labels.ts';
 import { Icon } from './Icon.tsx';
 import { PanelActions } from './PanelActions.tsx';
 import { NavigationPanel } from './NavigationPanel.tsx';
-import { MAX_VIA_STOPS, type ViaStop } from '../hooks/useRoutePlanner.ts';
+import { VoiceRoutePanel } from './VoiceRoutePanel.tsx';
+import { MAX_VIA_STOPS, type Itinerary, type ViaStop } from '../hooks/useRoutePlanner.ts';
 import { PlaceField } from './PlaceField.tsx';
 import type { PickMode, Selection } from './MapView.tsx';
 
 type Place = { lat: number; lng: number; label: string };
 
 interface Props {
+  voiceRequest?: { id: number; text: string };
+  voiceResetKey?: number;
+  onVoiceRequestConsumed?: () => void;
   actionsTarget?: HTMLElement | null;
   onNavigationPosition?: (coordinate: [number, number]) => void;
+  onApplyItinerary?: (itinerary: Itinerary) => void;
   from: Place | null;
   to: Place | null;
   via?: ViaStop[];
@@ -133,14 +139,6 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
         </div>
       )}
 
-      <dl className="stats">
-        <div><dt>Distanza</dt><dd>{formatDistance(route.distanceM)}</dd></div>
-        <div>
-          <dt>Durata stimata</dt>
-          <dd>{route.durationS !== null ? formatDuration(route.durationS) : <span className="muted" title="La durata disponibile è calcolata a passo pedonale">Non stimata</span>}</dd>
-        </div>
-      </dl>
-
       {route.mode === 'wheelchair' && compare.footRoute && compare.footAnalysis && (
         <CompareCard route={route} analysis={analysis} foot={compare.footRoute} footAnalysis={compare.footAnalysis}
           showFoot={compare.showFoot} setShowFoot={compare.setShowFoot} onSelect={onSelect} />
@@ -178,9 +176,22 @@ function RouteSummary({ route, analysis, onSelect, compare }: {
 }
 
 export function RoutePanel(p: Props) {
+  const [manualOpen, setManualOpen] = useState(true);
+  useEffect(() => { if (p.voiceRequest) setManualOpen(false); }, [p.voiceRequest?.id]);
   return (
     <section aria-labelledby="route-title" className="panel">
       <h2 id="route-title" className="panel__title">Trova un percorso</h2>
+      {p.onApplyItinerary && <VoiceRoutePanel key={p.voiceResetKey} externalRequest={p.voiceRequest} onRequestConsumed={p.onVoiceRequestConsumed} compact onApply={p.onApplyItinerary} disabled={p.loading} />}
+      {p.loading && <p className="msg" role="status">Calcolo il percorso…</p>}
+      {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
+      {p.route && <dl className="stats">
+        <div><dt>Distanza</dt><dd>{formatDistance(p.route.distanceM)}</dd></div>
+        <div><dt>Durata stimata</dt><dd>{p.route.durationS !== null ? formatDuration(p.route.durationS) : 'Non stimata'}</dd></div>
+      </dl>}
+      {p.route && <NavigationPanel route={p.route} onPosition={p.onNavigationPosition} />}
+      <details className="manual-route" open={manualOpen} onToggle={(event) => setManualOpen(event.currentTarget.open)}>
+      <summary>{p.route ? 'Modifica le tappe' : 'Scegli i punti manualmente'}</summary>
+      <div className="manual-route__fields">
       <PlaceField letter="A" label="Partenza" value={p.from} picking={p.pickMode === 'from'}
         onPick={() => p.setPickMode(p.pickMode === 'from' ? null : 'from')} onSet={(place) => { p.setPickMode(null); p.setFrom(place); }}
         onLocate={() => { p.setPickMode(null); p.onLocate('from'); }} locating={p.locating} />
@@ -203,7 +214,8 @@ export function RoutePanel(p: Props) {
       <PlaceField letter={String.fromCharCode(66 + (p.via?.length ?? 0))} label="Destinazione" value={p.to} picking={p.pickMode === 'to'}
         onPick={() => p.setPickMode(p.pickMode === 'to' ? null : 'to')} onSet={(place) => { p.setPickMode(null); p.setTo(place); }} />
       {(p.via?.length ?? 0) > 0 && <p className="help">Visita le tappe nell’ordine indicato, fino a 5 punti. Completa tutte le tappe prima di calcolare.</p>}
-      <PanelActions target={p.actionsTarget}>
+      </div></details>
+      {(manualOpen || p.route) && <PanelActions target={p.actionsTarget}>
       <div className="row">
         <button type="button" className="btn btn--primary btn--block" onClick={p.onCalculate} disabled={!p.from || !p.to || p.via?.some((stop) => !stop.place) || p.loading}>
           {p.loading ? 'Calcolo in corso…' : 'Calcola percorso'}
@@ -211,9 +223,7 @@ export function RoutePanel(p: Props) {
         <button type="button" className="btn btn--ghost" onClick={() => { p.setPickMode(null); if (p.onReverse) p.onReverse(); else { p.setFrom(p.to); p.setTo(p.from); } }}
           disabled={!p.from && !p.to} aria-label="Inverti partenza e destinazione" title="Inverti">⇅</button>
       </div>
-      </PanelActions>
-      {p.error && <p className="msg msg--error" role="alert">{p.error}</p>}
-      {p.route && <NavigationPanel route={p.route} onPosition={p.onNavigationPosition} />}
+      </PanelActions>}
       {p.route && p.analysis && <RouteSummary route={p.route} analysis={p.analysis} onSelect={p.onSelect} compare={p} />}
       {!p.route && !p.error && !p.loading && (
         <p className="hint">Imposta partenza e destinazione cercando un indirizzo o toccando la mappa. AccessGo mostra le criticità note e quanto sono complete le informazioni lungo il tragitto.</p>

@@ -59,7 +59,11 @@ async function calculate() {
   await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Calcola percorso' })));
 }
 const rendered = (label: string) => screen.getByLabelText(label).textContent;
-const allToggle = () => screen.getByRole('checkbox', { name: 'Mostra tutti gli ostacoli' });
+const allToggle = () => {
+  const button = screen.getByRole('button', { name: 'Legenda e livelli' });
+  if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button);
+  return screen.getByRole('checkbox', { name: 'Mostra tutti gli ostacoli' });
+};
 
 describe('map scope through App navigation', () => {
   it('ends map picking after choosing a search result, so later map clicks cannot overwrite it', async () => {

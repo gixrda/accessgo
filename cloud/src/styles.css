@@ -49,7 +49,7 @@ code { font-size: 0.85em; background: var(--bg); padding: 1px 5px; border-radius
 /* ---------- Layout ---------- */
 .app {
   position: fixed; top: 0; left: 0; right: 0; height: 100dvh;
-  overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden; display: grid; grid-template-rows: auto auto minmax(0, 1fr);
 }
 .main { display: grid; grid-template-columns: 400px minmax(0, 1fr); min-height: 0; min-width: 0; }
 .map-area { position: relative; min-height: 0; min-width: 0; }
@@ -401,7 +401,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .endpoint:not(.endpoint--A) { background: #fff; color: var(--brand); border: 2px solid var(--brand); }
 
 .dictation { margin-block: 6px 10px; }
-.dictation__button { min-height: 44px; padding: 6px 10px; font-size: .88rem; }
+.dictation__button { min-height: 44px; padding: 6px 10px; font-size: .88rem; display: inline-flex; justify-content: center; align-items: center; gap: 5px; }
 .dictation__hint { font-size: .76rem; margin-top: 3px; line-height: 1.4; }
 .voice-navigation { margin-block: 18px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--primary-tint); }
 .voice-navigation h3 { font-size: 1.05rem; margin-bottom: 8px; }
@@ -416,3 +416,69 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
 .voice-navigation ol { margin: 0; padding-left: 24px; }
 .voice-navigation li { margin-block: 12px; font-size: .9rem; overflow-wrap: anywhere; }
 .voice-navigation li .btn { min-height: 44px; margin-top: 4px; font-size: .8rem; }
+
+/* Natural-language route planning is the primary voice entry point. */
+.voice-route { padding: 16px; margin-bottom: 22px; border: 1px solid #b7cee4; border-radius: 14px; background: #f2f7fc; min-width: 0; }
+.voice-route__eyebrow { display: block; color: var(--primary); font-size: .73rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 3px; }
+.voice-route__heading h3 { font-size: 1.3rem; color: var(--brand); }
+.voice-route__heading p { margin-top: 6px; font-size: .86rem; line-height: 1.4; color: var(--ink-2); }
+.voice-route > .dictation { margin-block: 14px; }
+.voice-route .dictation__button { width: 100%; min-height: 48px; background: var(--primary); border-color: var(--primary); color: #fff; font-size: 1rem; font-weight: 700; }
+.voice-route .dictation__button:hover { background: var(--primary-dark); }
+.voice-route .dictation__hint { margin-top: 6px; }
+.voice-route__request { width: 100%; min-height: 80px; resize: vertical; margin-top: 6px; background: #fff; }
+.voice-route__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.voice-route__actions .btn { flex: 1 1 140px; font-size: .85rem; }
+.voice-route__actions .btn--primary { background: white; color: var(--primary); border-color: var(--primary); }
+.voice-route__review { border-top: 1px solid #b7cee4; margin-top: 16px; padding-top: 12px; }
+.voice-route__engine { color: var(--ok-ink); font-size: .76rem; overflow-wrap: anywhere; }
+.voice-route__review h4 { margin-block: 12px 4px; font-size: 1rem; }
+.voice-route__place { padding: 12px 0; border-bottom: 1px solid var(--line); margin-bottom: 10px; min-width: 0; }
+.voice-route__place > .btn { margin-block: 8px; width: 100%; }
+.voice-route__search { display: flex; gap: 6px; margin-block: 6px; }
+.voice-route__search input { width: 0; flex: 1 1 auto; min-width: 0; background: #fff; }
+.voice-route__search .btn { flex: 0 0 auto; padding-inline: 10px; }
+.voice-route__place select { width: 100%; max-width: 100%; min-height: 48px; background: #fff; margin-top: 4px; }
+.voice-route__chosen { color: var(--ok-ink); overflow-wrap: anywhere; font-size: .83rem; margin-top: 6px; }
+.voice-route:has(.voice-route__heading--compact) { padding: 0; border: 0; background: transparent; margin-bottom: 0; }
+.voice-route__heading--compact p { margin: 0; }
+.voice-route__heading--compact h3 { font-size: 1rem; }
+.voice-route--applied { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; margin-bottom: 0; }
+.voice-route--applied .hint { display: none; }
+.voice-route--applied h3 { font-size: 1rem; }
+.voice-route--applied .btn { margin: 0; font-size: .8rem; padding: 6px 8px; max-width: 145px; }
+.map-search { z-index: 1090; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); box-shadow: 0 2px 5px #14304f0b; max-height: min(48dvh, 340px); overflow: auto; }
+.map-search__row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 40px; align-items: start; gap: 8px; max-width: 900px; margin: 0 auto; }
+.map-search__row > input { border: 1px solid var(--line); border-radius: 24px; background: #f3f5f7; min-height: 48px; }
+.map-search__submit { min-height: 48px; border-radius: 24px; }
+.map-search__voice .dictation { margin: 0; }
+.map-search__voice .dictation__button { border: 1px solid #c3d8ef; color: var(--primary); background: var(--primary-tint); min-height: 48px; border-radius: 24px; white-space: nowrap; }
+.map-search__voice .dictation .row { flex-wrap: nowrap; }
+.map-search__voice[data-open='false'] .dictation[data-availability='ready'][data-supported='true'] .dictation__hint { display: none; }
+.map-search__voice[data-open='true'] { grid-column: 1 / -1; grid-row: 2; }
+.map-search__voice[data-open='true'] .dictation__hint { max-width: 650px; margin-top: 6px; }
+.map-search__info { border: 0; background: transparent; color: var(--ink-2); cursor: pointer; min-height: 48px; display: grid; place-items: center; }
+.map-locate { position: absolute; right: 12px; bottom: 62px; z-index: 900; border-radius: 24px; background: #fff; box-shadow: var(--shadow); font-size: .85rem; }
+.manual-route { border-top: 1px solid var(--line); padding-top: 8px; }
+.manual-route > summary { cursor: pointer; font-weight: 700; min-height: 44px; padding-block: 10px; color: var(--primary); }
+.manual-route__fields { display: flex; flex-direction: column; gap: 16px; padding-top: 6px; }
+.app--keyboard .map-search { padding: 6px 12px; }
+.app--keyboard .map-search__voice[data-open='false'], .app--keyboard .map-search__info { display: none; }
+.app--keyboard .map-search__row { grid-template-columns: minmax(0, 1fr) auto; }
+.app--keyboard .sheet--peek .sheet__body { display: block; }
+@media (max-width: 759px) {
+  .voice-route { padding: 12px; }
+  .voice-route__heading h3 { font-size: 1.2rem; }
+  .map-search { padding: 8px 12px; }
+  .map-search__row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
+  .map-search__info { display: none; }
+  .map-search__submit { padding-inline: 12px; font-size: .86rem; }
+  .map-search__voice .dictation__button { padding-inline: 10px; font-size: .86rem; }
+  .map-search__row > input { padding-inline: 14px; }
+  .topbar__cta { padding: 8px 12px; font-size: .83rem; min-height: 40px; }
+  .main--peek .sheet__tools { justify-content: center; }
+  .main--peek .sheet__handle { min-height: 32px; }
+  .main--peek .tabs { padding-top: 0; }
+  .main--peek .tab { min-height: 44px; }
+  .main--full .map-locate { display: none; }
+}

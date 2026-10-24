@@ -1,3 +1,31 @@
+# Aggiornamento v6 · ricerca e navigazione vocale
+
+- Sorgente Sites: `ef1248ee9bd503181e3cfe7de7cc8d45cb33d1ce`.
+- Versione 6 pubblicata il 24 ottobre 2026 alle 13:29:27 UTC; revisione ambiente 2 invariata.
+- Sito: https://accessogo.xyxzwb.chatgpt.site/
+- Base GitHub: `0cdb2ab`, dopo il merge della PR #4 da parte del team. Prosegue il ramo `codex/gemma-api-reliability`, senza push diretto o merge su `main`.
+- Tutti i file applicativi e test di `cloud/` corrispondono allo snapshot sopra. Solo README e questa nota contengono le informazioni aggiuntive per il team. La radice del repository non è stata modificata o ritestata in questo aggiornamento.
+
+## Cambiamenti
+
+Ricerca unificata e microfono **Parla** in alto, mappa prevalente su telefono, pannelli/livelli espandibili. I nomi di luoghi e gli indirizzi vengono cercati direttamente, senza dipendere da AI. ElevenLabs trascrive richieste complete con rilevamento automatico della lingua; Gemma propone partenza, destinazione e tappe. Tutti i risultati geografici richiedono scelta e conferma prima del calcolo. Nessun test di questo flusso pubblica segnalazioni.
+
+Ricerca OSM con nomi alternativi IT/EN/ZH, attesa limitata sul cooldown e fallback su dati locali reali. Polo F identifica l’area Polo Fibonacci, con ingresso da verificare. La localizzazione per pianificazione prova alta precisione e, solo se indisponibile/scaduta, una stima normale; stime di 100–1000 m richiedono conferma. Rifiuti dei permessi e posizioni fuori Pisa sono espliciti; vecchie risposte GPS/AI non sovrascrivono nuove scelte.
+
+## Verifiche
+
+TypeScript, build di produzione e **493 test passati**. Roundtrip locale ElevenLabs reale: MP3 sintetico 31.390 byte → Scribe v2 → `Vorrei andare alla Torre di Pisa` → Gemma con destinazione Torre di Pisa; elenco report invariato. Sette ricerche OSM reali verificate. Browser locale 390 × 844: luoghi confermati, percorso Valhalla 620 m con 8 manovre. Il modello ha interpretato correttamente una richiesta con partenza e tappa dichiarate dopo la destinazione, e ha richiesto chiarimenti per destinazioni alternative.
+
+Una chiamata diretta Gemma in cinese è riuscita; due precedenti chiamate Worker in cinese hanno usato il fallback correttamente indicato, senza causa transitoria confermata. Non è una prova di accuratezza generale. iPhone fisico, microfono, permessi e GPS durante una passeggiata restano da verificare. La guida richiede schermo/pagina attivi e non ricalcola automaticamente.
+
+Verifica pubblica v6 a 390 × 844: ricerca diretta `比萨斜塔` senza AI, selezione di Piazza dei Cavalieri come partenza e conferma dei due candidati; percorso restituito di 620 m, 10 minuti e 8 manovre. I controlli Parla e Guida vocale risultano disponibili. Questa prova non ha richiesto permessi microfono/GPS né creato report.
+
+Credenziali, database pubblici, `.dev.vars`, dipendenze e build non sono inclusi. Una scansione dei file sorgente e del bundle client non ha trovato i segreti locali configurati.
+
+---
+
+## Cronologia precedente
+
 # Provenienza e integrazione
 
 Questa cartella contiene lo snapshot sorgente AccessGo v5 del 24 ottobre 2026, pubblicato sul sito esistente https://accessogo.xyxzwb.chatgpt.site/. Le verifiche locali e quelle della versione pubblicata sono distinte.

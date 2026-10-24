@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LatLngTuple, RouteResult } from '../../shared/types.ts';
+import { inPisa, type LatLngTuple, type RouteResult } from '../../shared/types.ts';
 import { api } from '../api.ts';
 
 export type Place = { lat: number; lng: number; label: string };
 export type ViaStop = { id: string; place: Place | null };
+export type Itinerary = { from: Place; to: Place; via: Place[] };
 export const MAX_VIA_STOPS = 3;
 
 export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) => void }) {
@@ -74,6 +75,21 @@ export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) 
     changeViaStops([...viaRef.current].reverse());
   }, [changeViaStops]);
 
+  /** Replace all confirmed voice points together before starting a request. */
+  const replaceItinerary = useCallback((itinerary: Itinerary) => {
+    invalidate();
+    if (itinerary.via.length > MAX_VIA_STOPS
+      || [itinerary.from, ...itinerary.via, itinerary.to].some((point) => !point || !inPisa(point.lat, point.lng))) {
+      setRouteError('Conferma tutti i luoghi nell’area di Pisa prima di calcolare.');
+      return false;
+    }
+    const stops = itinerary.via.map((place) => ({ id: String(++nextStopId.current), place }));
+    endpoints.current = { from: itinerary.from, to: itinerary.to };
+    viaRef.current = stops;
+    setFrom(itinerary.from); setTo(itinerary.to); setVia(stops);
+    return true;
+  }, [invalidate]);
+
   useEffect(() => () => {
     sequence.current += 1;
     controller.current?.abort();
@@ -117,5 +133,5 @@ export function useRoutePlanner({ onFocus }: { onFocus: (coords: LatLngTuple[]) 
     }
   }, [invalidate, onFocus]);
 
-  return { from, to, via, changeFrom, changeTo, addVia, changeVia, removeVia, moveVia, reverse, route, footRoute, routeLoading, routeError, calculate };
+  return { from, to, via, changeFrom, changeTo, addVia, changeVia, removeVia, moveVia, reverse, replaceItinerary, route, footRoute, routeLoading, routeError, calculate };
 }
