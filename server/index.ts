@@ -18,11 +18,11 @@ const TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json', '.woff2': 'font/woff2',
 };
 
-// Header di sicurezza per le pagine e i file statici. Il browser parla solo con questo server, con le tile OSM e i font.
+// Header di sicurezza per le pagine e i file statici. Il browser parla solo con questo server e con le tile OSM.
 const SECURITY_HEADERS: Record<string, string> = {
   'Content-Security-Policy': [
-    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    'font-src https://fonts.gstatic.com', "img-src 'self' data: blob: https://tile.openstreetmap.org", "connect-src 'self'",
+    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'", "img-src 'self' data: blob: https://tile.openstreetmap.org", "connect-src 'self'",
     "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
   ].join('; '),
   'X-Content-Type-Options': 'nosniff',

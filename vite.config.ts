@@ -11,8 +11,8 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 const PAGES_CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // stili inline di Leaflet e delle animazioni
-  "font-src https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'", // stili inline di Leaflet e delle animazioni
+  "font-src 'self'",
   "img-src 'self' data: https://tile.openstreetmap.org",
   "connect-src 'self' https://nominatim.openstreetmap.org",
   "object-src 'none'",
