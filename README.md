@@ -6,7 +6,7 @@ OpenWay aiuta chi si muove in sedia a rotelle a orientarsi a Pisa. Calcola un pe
 
 > OpenWay non dichiara mai un percorso "accessibile" o "sicuro". Mostra quello che i dati permettono di verificare: l'assenza di ostacoli noti non è una garanzia e nessun percorso è stato controllato di persona.
 
-Prototipo nato per un hackathon (ottobre 2026). Il progetto si chiamava *AccessGo*: il documento di partenza `AccessGo.md` e il repository GitHub conservano il vecchio nome. L'edizione pubblicata su https://accessogo.xyxzwb.chatgpt.site/ vive nella cartella [`cloud/`](cloud/README.md) ed è un'app separata. L'architettura è descritta in [ARCHITECTURE.md](ARCHITECTURE.md).
+Prototipo nato per un hackathon (ottobre 2026). L'architettura è descritta in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
