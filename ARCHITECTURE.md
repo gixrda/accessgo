@@ -82,7 +82,9 @@ src/
   components/      MapView, RoutePanel, ReportPanel, DetailPanel, MapControls, NavigationPanel, DictationButton
   lib/             analysis (ostacoli lungo il percorso), compare, reroute, alerts, speech, navigation, labels, icons
   hooks/           useDictation, useElevenLabsVoice, useVoiceNavigation
-  styles.css       design system (variabili CSS, vetro, tema chiaro/scuro, marker)
+  styles.css       design system dell'app (variabili CSS, vetro, tema chiaro/scuro)
+  markers.css      marker della mappa, condivisi tra app e landing
+  landing/         landing page (/landing/, landing/index.html): hero con mappa, demo dei percorsi, testi in copy.ts
 tests/             Vitest (136 test), senza rete: i servizi esterni sono simulati
 scripts/           fetch-osm (snapshot), check-gemma (prova dal vivo dell'AI)
 cloud/             edizione pubblicata (Cloudflare Workers + D1): app separata, vedi cloud/README.md
