@@ -47,7 +47,9 @@ export function LivingLine({ coords, branches, playing, dashed = false, at = 0.4
 
     const casingEl = measured(casing), lineEl = measured(line);
     const forkEls = forks.map(measured);
-    gsap.set(forkEls, { opacity: 0 }); // l'opacità visibile la decide la timeline, non Leaflet
+    // Senza diramazioni (dati OSM non ancora caricati) la timeline anima un segnaposto: stessi tempi, nessun avviso.
+    const forkTargets: object[] = forkEls.length ? forkEls : [{ opacity: 0, strokeDashoffset: 1 }];
+    gsap.set(forkTargets, { opacity: 0 }); // l'opacità visibile la decide la timeline, non Leaflet
     // Leaflet posiziona i marker con transform: si anima l'elemento interno, non il contenitore.
     const destEl = dest.getElement()!.firstElementChild as HTMLElement, startEl = start.getElement()!.firstElementChild as HTMLElement;
     const finalDash = dashed ? DASH : 'none';
@@ -72,7 +74,7 @@ export function LivingLine({ coords, branches, playing, dashed = false, at = 0.4
     const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.5, defaults: { ease: 'sine.inOut' } });
     tl.set([casingEl, lineEl], { strokeDasharray: '1 1', opacity: 1 })
       .set(state, { p: 0, onComplete: draw })
-      .set(forkEls, { strokeDasharray: '1 1', strokeDashoffset: 1, opacity: 0 })
+      .set(forkTargets, { strokeDasharray: '1 1', strokeDashoffset: 1, opacity: 0 })
       .set([destEl, startEl, headEl], { opacity: 0 })
       .set(destEl, { scale: 0.4, transformOrigin: '50% 50%' })
       // A: il punto compare sulla strada
@@ -80,9 +82,9 @@ export function LivingLine({ coords, branches, playing, dashed = false, at = 0.4
       // B: la linea esplora fino al bivio
       .to(state, { p: at, duration: 1.6, onUpdate: draw })
       // C: altre strade si aprono, rallentano e svaniscono (non sono itinerari)
-      .to(forkEls, { opacity: 0.5, duration: 0.5, stagger: 0.12, ease: 'power1.out' }, '-=0.15')
-      .to(forkEls, { strokeDashoffset: 0, duration: 0.9, stagger: 0.12, ease: 'power3.out' }, '<')
-      .to(forkEls, { opacity: 0, duration: 0.7, stagger: 0.08, ease: 'power1.in' }, '+=0.25')
+      .to(forkTargets, { opacity: 0.5, duration: 0.5, stagger: 0.12, ease: 'power1.out' }, '-=0.15')
+      .to(forkTargets, { strokeDashoffset: 0, duration: 0.9, stagger: 0.12, ease: 'power3.out' }, '<')
+      .to(forkTargets, { opacity: 0, duration: 0.7, stagger: 0.08, ease: 'power1.in' }, '+=0.25')
       // D: la linea trova la sua strada e arriva
       .to(state, { p: 1, duration: 1.2, onUpdate: draw }, '<-0.2')
       .to(headEl, { opacity: 0, duration: 0.3 }, '>-0.1')
