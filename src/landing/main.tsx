@@ -1,4 +1,5 @@
 import 'leaflet/dist/leaflet.css';
+import '../fonts/fonts.css';
 import '../markers.css';
 import './landing.css';
 import { StrictMode } from 'react';

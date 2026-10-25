@@ -173,7 +173,10 @@ function Footer() {
         </nav>
         <div className="ow-footer__privacy">
           <h2 className="ow-footer__title">{f.privacyTitle}</h2>
-          <p>{f.privacy}</p>
+          {f.privacy.map((t) => <p key={t}>{t}</p>)}
+          <ul className="ow-footer__links">
+            {f.privacyLinks.map((l) => <li key={l.href}><a href={l.href} rel="noopener noreferrer">{l.label}</a></li>)}
+          </ul>
         </div>
         <p className="ow-footer__credits">{f.credits}</p>
       </div>

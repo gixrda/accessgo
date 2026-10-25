@@ -271,7 +271,17 @@ export const copy = {
     repo: 'Codice sorgente',
     cloud: 'Edizione online (versione precedente)',
     privacyTitle: 'Privacy',
-    privacy: 'Le segnalazioni vengono salvate sul server del progetto con il punto scelto sulla mappa. Le foto sono ridimensionate nel browser e senza dati GPS. Audio e trascrizioni della voce non vengono conservati.',
-    credits: 'Dati mappa © OpenStreetMap contributors (ODbL). Percorsi: Valhalla e OSRM (FOSSGIS e.V.). Carattere: Atkinson Hyperlegible Next.',
+    privacy: [
+      'Questa pagina non usa cookie né strumenti di statistica, e il carattere è servito dal sito stesso.',
+      'Per mostrare la mappa il browser scarica le immagini dai server di OpenStreetMap; se cerchi un luogo, il testo della ricerca va a Nominatim (OpenStreetMap). Entrambi ricevono l’indirizzo IP di chi visita, come accade con ogni contenuto esterno.',
+      STATIC
+        ? 'Il sito è ospitato da GitHub Pages, che registra gli accessi secondo la propria informativa.'
+        : 'Nell’app, le segnalazioni vengono salvate sul server del progetto con il punto scelto sulla mappa; le foto sono ridimensionate nel browser e senza dati GPS; audio e trascrizioni della voce non vengono conservati.',
+    ],
+    privacyLinks: [
+      { href: 'https://osmfoundation.org/wiki/Privacy_Policy', label: 'Informativa OpenStreetMap' },
+      ...(STATIC ? [{ href: 'https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement', label: 'Informativa GitHub' }] : []),
+    ],
+    credits: 'Dati mappa © OpenStreetMap contributors (ODbL). Percorsi: Valhalla e OSRM (FOSSGIS e.V.). Carattere: Atkinson Hyperlegible Next (OFL), servito dal sito.',
   },
 };
