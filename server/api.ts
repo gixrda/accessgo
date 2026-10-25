@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -90,7 +91,7 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
       const m = /^\/api\/reports\/([\w-]+)$/.exec(path);
       if (method === 'PATCH' && m) {
         if (!env.ADMIN_TOKEN) throw new HttpError(403, 'Modifica degli stati non abilitata su questo server.');
-        if (req.headers['x-admin-token'] !== env.ADMIN_TOKEN) throw new HttpError(401, 'Codice moderatore non valido.');
+        if (!sameSecret(req.headers['x-admin-token'], env.ADMIN_TOKEN)) throw new HttpError(401, 'Codice moderatore non valido.');
         const { status } = (await body(req) ?? {}) as { status?: unknown };
         return send(res, 200, await reports.setStatus(m[1], status));
       }
@@ -123,6 +124,13 @@ export function createApi({ env, reportsFile, osmFile }: ApiOptions) {
       return send(res, 500, { error: 'Qualcosa non ha funzionato. Riprova tra poco.' });
     }
   };
+}
+
+/** Confronto a tempo costante: la durata della risposta non rivela quanti caratteri del codice sono giusti. */
+function sameSecret(given: string | string[] | undefined, expected: string): boolean {
+  if (typeof given !== 'string') return false;
+  const [a, b] = [Buffer.from(given), Buffer.from(expected)];
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function send(res: ServerResponse, status: number, data: unknown): true {

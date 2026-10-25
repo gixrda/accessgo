@@ -38,6 +38,10 @@ cp .env.example .env        # facoltativo: senza chiavi funziona lo stesso, con 
 npm run dev                 # apri http://localhost:5173
 ```
 
+La landing page di presentazione è su http://localhost:5173/landing/ (in produzione `/landing/`): mappa interattiva con un percorso di esempio calcolato dal vivo, ricerca indirizzi e i cinque tragitti demo. Testi in `src/landing/copy.ts`, specifiche visive in `design_system.md`.
+
+Una versione statica della landing è pubblicata su GitHub Pages: https://gixrda.github.io/accessgo/ . Senza server: dati OpenStreetMap inclusi, percorsi demo registrati con la data (`npm run record:routes`), ricerca diretta a Nominatim. La pubblica il workflow `.github/workflows/pages.yml` a ogni push su `main`. Sicurezza: vedi [SECURITY.md](SECURITY.md).
+
 Per provarla dal telefono sulla stessa rete Wi‑Fi:
 
 ```bash
@@ -63,7 +67,7 @@ Tutte le chiavi sono lette **solo dal server**: non hanno prefisso `VITE_` e non
 | `ELEVENLABS_API_KEY` | Dettatura e guida vocale (`ELEVENLABS_VOICE_ID`, `ELEVENLABS_TTS_MODEL` facoltativi) | [ElevenLabs](https://elevenlabs.io/), piano gratuito; basta una chiave con i soli permessi *text to speech* e *speech to text* | voce disattivata, tutto il resto funziona |
 | `ORS_API_KEY` | Routing OpenRouteService (considera anche i cordoli) | [openrouteservice.org](https://openrouteservice.org/dev/#/signup), gratis | Valhalla (gratis, senza chiave) |
 | `OLLAMA_URL`, `OLLAMA_MODEL` | Gemma in locale con Ollama, al posto di Google | `ollama pull gemma3` | — |
-| `ADMIN_TOKEN` | Codice per cambiare lo stato delle segnalazioni (`demo-admin` nel file di esempio) | lo scegli tu | cambio stato disabilitato |
+| `ADMIN_TOKEN` | Codice per cambiare lo stato delle segnalazioni: un valore lungo e casuale (vuoto nel file di esempio) | lo scegli tu | cambio stato disabilitato |
 | `PORT` | Porta di `npm start` (default 8787) | — | — |
 
 ---
@@ -127,6 +131,8 @@ Demo in 3 minuti: link 5 (spiega la scelta) → link 3 (limite dichiarato) → l
 | `npm run typecheck` | solo type-check |
 | `npm run check:ai` | prova dal vivo di Gemma su segnalazioni di esempio (richiede la chiave) |
 | `npm run fetch:osm` | riscarica lo snapshot OpenStreetMap della zona (una sola richiesta a Overpass) |
+| `npm run record:routes` | registra i percorsi dei tragitti demo per la landing statica (`server/data/routes-recorded.json`) |
+| `npm run build:pages` | build statico della landing per GitHub Pages in `dist-pages/` |
 
 Lint non configurato (scelta per ridurre le dipendenze); TypeScript in modalità `strict`.
 

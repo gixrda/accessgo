@@ -5,3 +5,5 @@ server/data/reports.json
 server/data/photos
 *.tsbuildinfo
 img/
+dist-pages
+.impeccable/
