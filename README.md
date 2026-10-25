@@ -6,7 +6,7 @@ OpenWay aiuta chi si muove in sedia a rotelle a orientarsi a Pisa. Calcola un pe
 
 > OpenWay non dichiara mai un percorso "accessibile" o "sicuro". Mostra quello che i dati permettono di verificare: l'assenza di ostacoli noti non è una garanzia e nessun percorso è stato controllato di persona.
 
-Prototipo nato per un hackathon (ottobre 2026). Il progetto si chiamava *AccessGo*: il documento di partenza `AccessGo.md` e il repository GitHub conservano il vecchio nome. L'edizione pubblicata su https://accessogo.xyxzwb.chatgpt.site/ vive nella cartella [`cloud/`](cloud/README.md) ed è un'app separata. L'architettura è descritta in [ARCHITECTURE.md](ARCHITECTURE.md).
+Prototipo nato all'Hacktoberfest del GDG Pisa (ottobre 2026), secondo classificato come miglior progetto open source. Il progetto si chiamava *AccessGo*: il documento di partenza `AccessGo.md` conserva il vecchio nome. L'edizione pubblicata su https://accessogo.xyxzwb.chatgpt.site/ vive nella cartella [`cloud/`](cloud/README.md) ed è un'app separata. L'architettura è descritta in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -31,8 +31,8 @@ Tutto funziona anche senza chiavi: in quel caso la lettura delle segnalazioni us
 Requisiti: **Node.js 23.6 o più recente** (il server è TypeScript eseguito direttamente da Node). Testato con Node 26 su macOS.
 
 ```bash
-git clone https://github.com/gixrda/accessgo.git
-cd accessgo
+git clone https://github.com/gixrda/openway.git
+cd openway
 npm install
 cp .env.example .env        # facoltativo: senza chiavi funziona lo stesso, con i fallback dichiarati
 npm run dev                 # apri http://localhost:5173
@@ -40,7 +40,7 @@ npm run dev                 # apri http://localhost:5173
 
 La landing page di presentazione è su http://localhost:5173/landing/ (in produzione `/landing/`): mappa interattiva con un percorso di esempio calcolato dal vivo, ricerca indirizzi e i cinque tragitti demo. Testi in `src/landing/copy.ts`, specifiche visive in `design_system.md`.
 
-Una versione statica della landing è pubblicata su GitHub Pages: https://gixrda.github.io/accessgo/ . Senza server: dati OpenStreetMap inclusi, percorsi demo registrati con la data (`npm run record:routes`), ricerca diretta a Nominatim. La pubblica il workflow `.github/workflows/pages.yml` a ogni push su `main`. Sicurezza: vedi [SECURITY.md](SECURITY.md).
+Una versione statica della landing è pubblicata su GitHub Pages: https://gixrda.github.io/openway/ . Senza server: dati OpenStreetMap inclusi, percorsi demo registrati con la data (`npm run record:routes`), ricerca diretta a Nominatim. La pubblica il workflow `.github/workflows/pages.yml` a ogni push su `main`. Sicurezza: vedi [SECURITY.md](SECURITY.md).
 
 Per provarla dal telefono sulla stessa rete Wi‑Fi:
 

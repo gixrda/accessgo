@@ -6,7 +6,7 @@ import { STATIC } from './staticData.ts';
 
 export interface Scenario { id: string; name: string; hint: string; from: LatLngTuple; to: LatLngTuple }
 
-export const REPO_URL = 'https://github.com/gixrda/accessgo';
+export const REPO_URL = 'https://github.com/gixrda/openway';
 // Su GitHub Pages l'app (che richiede il server) non c'è: i link portano alle istruzioni per provarla.
 export const APP_URL = STATIC ? `${REPO_URL}#installazione` : '/';
 export const CLOUD_URL = 'https://accessogo.xyxzwb.chatgpt.site/';
@@ -206,14 +206,15 @@ export const copy = {
   project: {
     title: 'Il progetto',
     text: [
-      'OpenWay è un prototipo nato a Pisa durante un hackathon, nell’ottobre 2026. All’inizio si chiamava AccessGo.',
+      'OpenWay è un prototipo nato all’Hacktoberfest del GDG Pisa, nell’ottobre 2026, dove si è classificato secondo come miglior progetto open source. All’inizio si chiamava AccessGo.',
       'L’idea è semplice: una mappa per chi si muove in sedia a rotelle che dica cosa sa, cosa è solo probabile e cosa manca. Per questo non definisce mai un percorso «accessibile» o «sicuro», e dichiara ogni volta che usa una soluzione di ripiego.',
     ],
     card: {
       name: 'OpenWay',
       kind: 'Prototipo · Pisa, zona universitaria',
       rows: [
-        { label: 'Nato', value: 'Hackathon, ottobre 2026' },
+        { label: 'Nato', value: 'Hacktoberfest GDG Pisa, 2026' },
+        { label: 'Risultato', value: '2° miglior progetto open source' },
         { label: 'Nome precedente', value: 'AccessGo' },
         { label: 'Copertura', value: 'Zona universitaria di Pisa' },
         { label: 'Stato dei percorsi', value: 'Non controllati sul posto' },

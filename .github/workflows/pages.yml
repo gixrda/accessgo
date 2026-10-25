@@ -1,4 +1,4 @@
-# Pubblica la landing statica su GitHub Pages (https://gixrda.github.io/accessgo/).
+# Pubblica la landing statica su GitHub Pages (https://gixrda.github.io/openway/).
 # Azioni bloccate su commit SHA e permessi minimi: il token può solo leggere il codice e pubblicare Pages.
 name: Pages
 

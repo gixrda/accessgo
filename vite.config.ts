@@ -44,7 +44,7 @@ export default defineConfig(({ mode }): UserConfig => {
   if (mode === 'static') {
     process.env.VITE_STATIC = '1';
     return {
-      base: '/accessgo/',
+      base: '/openway/',
       build: { outDir: 'dist-pages', rollupOptions: { input: { landing: `${root}landing/index.html` } } },
       plugins: [react(), pagesBuild()],
     };
